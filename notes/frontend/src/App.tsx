@@ -2,6 +2,7 @@ import { useState, useCallback, useEffect, useMemo, useRef } from 'react'
 import debounce from 'lodash.debounce'
 import Sidebar from './components/Sidebar'
 import Editor from './components/Editor'
+import Header from './components/Header'
 import type { Note } from './types'
 import TurndownService from 'turndown'
 import { marked } from 'marked'
@@ -128,58 +129,62 @@ function App() {
   }
 
   return (
-    <div className="flex h-screen w-screen overflow-hidden bg-gray-100 font-sans">
-      <Sidebar 
-        notes={notes} 
-        selectedNoteId={selectedNoteId || -1} 
-        onSelectNote={setSelectedNoteId} 
-        onCreateNote={handleCreateNote}
-        onDeleteNote={handleDeleteNote}
-      />
-      <main className="flex-1 flex flex-col min-w-0 bg-white shadow-inner">
-        <header className="h-16 border-b border-gray-100 flex items-center justify-between px-8 bg-white/80 backdrop-blur-md sticky top-0 z-10">
-          <input 
-            type="text"
-            className="text-2xl font-bold text-gray-900 focus:outline-none flex-1 mr-4 bg-transparent placeholder-gray-300"
-            value={selectedNote?.title || ''}
-            onChange={(e) => handleUpdateTitle(e.target.value)}
-            placeholder="Note Title"
-            disabled={!selectedNote}
-          />
-          <div className="flex items-center space-x-3">
-            <button 
-              onClick={() => setIsRawMode(!isRawMode)}
-              className={`px-4 py-1.5 text-xs font-semibold rounded-full transition-all duration-200 border ${
-                isRawMode 
-                  ? 'bg-blue-50 text-blue-600 border-blue-200 shadow-sm' 
-                  : 'bg-white text-gray-500 border-gray-200 hover:border-gray-300 hover:text-gray-700'
-              }`}
+    <div className="flex flex-col h-screen w-screen overflow-hidden bg-gray-100 font-sans">
+      <Header />
+      
+      <div className="flex flex-1 overflow-hidden">
+        <Sidebar 
+          notes={notes} 
+          selectedNoteId={selectedNoteId || -1} 
+          onSelectNote={setSelectedNoteId} 
+          onCreateNote={handleCreateNote}
+          onDeleteNote={handleDeleteNote}
+        />
+        <main className="flex-1 flex flex-col min-w-0 bg-white shadow-inner">
+          <header className="h-16 border-b border-gray-100 flex items-center justify-between px-8 bg-white/80 backdrop-blur-md sticky top-0 z-10">
+            <input 
+              type="text"
+              className="text-2xl font-bold text-gray-900 focus:outline-none flex-1 mr-4 bg-transparent placeholder-gray-300"
+              value={selectedNote?.title || ''}
+              onChange={(e) => handleUpdateTitle(e.target.value)}
+              placeholder="Note Title"
               disabled={!selectedNote}
-            >
-              {isRawMode ? 'Visual Editor' : 'Markdown Source'}
-            </button>
-          </div>
-        </header>
-        <div className="flex-1 overflow-hidden relative">
-          {!selectedNote ? (
-            <div className="flex items-center justify-center h-full text-gray-400">
-              Select a note to start editing
+            />
+            <div className="flex items-center space-x-3">
+              <button 
+                onClick={() => setIsRawMode(!isRawMode)}
+                className={`px-4 py-1.5 text-xs font-semibold rounded-full transition-all duration-200 border ${
+                  isRawMode 
+                    ? 'bg-blue-50 text-blue-600 border-blue-200 shadow-sm' 
+                    : 'bg-white text-gray-500 border-gray-200 hover:border-gray-300 hover:text-gray-700'
+                }`}
+                disabled={!selectedNote}
+              >
+                {isRawMode ? 'Visual Editor' : 'Markdown Source'}
+              </button>
             </div>
-          ) : isRawMode ? (
-            <textarea
-              className="absolute inset-0 w-full h-full p-10 font-mono text-sm focus:outline-none resize-none bg-gray-50/50 text-gray-800 leading-relaxed"
-              value={rawContent}
-              onChange={(e) => handleUpdateFromRaw(e.target.value)}
-              placeholder="Write your Markdown here..."
-            />
-          ) : (
-            <Editor 
-              content={selectedNote.content} 
-              onUpdate={handleUpdateContent}
-            />
-          )}
-        </div>
-      </main>
+          </header>
+          <div className="flex-1 overflow-hidden relative">
+            {!selectedNote ? (
+              <div className="flex items-center justify-center h-full text-gray-400">
+                Select a note to start editing
+              </div>
+            ) : isRawMode ? (
+              <textarea
+                className="absolute inset-0 w-full h-full p-10 font-mono text-sm focus:outline-none resize-none bg-gray-50/50 text-gray-800 leading-relaxed"
+                value={rawContent}
+                onChange={(e) => handleUpdateFromRaw(e.target.value)}
+                placeholder="Write your Markdown here..."
+              />
+            ) : (
+              <Editor 
+                content={selectedNote.content} 
+                onUpdate={handleUpdateContent}
+              />
+            )}
+          </div>
+        </main>
+      </div>
     </div>
   )
 }

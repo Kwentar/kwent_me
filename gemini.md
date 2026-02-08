@@ -21,24 +21,11 @@
 ## Деплой (CI/CD)
 Деплой автоматизирован через **GitHub Actions** и срабатывает **только при создании тега** (релиза).
 
-### Как задеплоить новую версию:
-1. Внеси изменения и закоммить их в `master`.
-2. Обнови `CHANGELOG.md`.
-3. Создай и отправь тег:
-   ```bash
-   git tag v0.1.0
-   git push origin v0.1.0
-   ```
-   *GitHub Actions автоматически соберет и выкатит обновление.*
+---
 
-### Необходимые Secrets в GitHub:
-- `HOST`: IP сервера.
-- `USERNAME`: root.
-- `SSH_KEY`: Приватный ключ для доступа.
-- `POSTGRES_PASSWORD`: Пароль для БД.
-- `GOOGLE_CLIENT_ID`: Из Google Cloud Console.
-- `GOOGLE_CLIENT_SECRET`: Из Google Cloud Console.
-- `OAUTH2_PROXY_COOKIE_SECRET`: Случайная строка для сессий.
+## ⚠️ Важное ограничение для AI-ассистента
+**Мне (Gemini) запрещено запускать серверы** (`npm run dev`, `docker compose up` и т.д.), так как это блокирует мою работу или приводит к ошибкам окружения.
+Если для тестирования или работы нужен запущенный сервер — **я должен попросить тебя запустить его вручную**.
 
 ---
 
@@ -51,7 +38,7 @@
 ```bash
 cd notes/frontend
 npm install
-npm run dev
+# Проси пользователя запустить: npm run dev
 # Откроется на http://localhost:5173/notes/
 ```
 
@@ -59,11 +46,10 @@ npm run dev
 ```bash
 cd notes/backend
 npm install
-# Нужен запущенный локальный Postgres или через Docker
-docker run --name notes-db -e POSTGRES_PASSWORD=password -e POSTGRES_DB=kwent_notes -p 5432:5432 -d postgres:17-alpine
+# Проси пользователя поднять БД и запустить: npm run dev
 npm run dev
 ```
-*Примечание: Локально бэкенд автоматически использует `dev@kwent.me`, если запрос идет с localhost.*
+*Примечание: Локально бэкенд автоматически использует `alekseev.yeskela@gmail.com`, если запрос идет с localhost.*
 
 ### 2. Локальный тест "как на проде" (Integration)
 Имитация работы Nginx, OAuth2 Proxy и всех контейнеров.
@@ -72,8 +58,8 @@ npm run dev
 # 1. Собрать фронтенд
 cd notes/frontend && npm run build && cd ../..
 
-# 2. Запустить стек (без Google Auth, так как нужен HTTPS)
-docker-compose -f docker-compose.local-test.yml up --build
+# 2. Проси пользователя запустить:
+# docker compose -f docker-compose.local-test.yml up --build
 ```
 *Доступно на http://localhost:8080*
 
