@@ -25,6 +25,7 @@ services:
       --cookie-name=_oauth2_proxy
       --upstream=static://200
       --reverse-proxy=true
+      --set-xauthrequest=true
     ports:
       - "4180:4180"
 
