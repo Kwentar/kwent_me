@@ -2,7 +2,9 @@ name: Deploy to Production
 
 on:
   push:
-    branches: [ "main", "master" ]
+    tags:
+      - 'v*'
+  workflow_dispatch: # Allow manual trigger just in case
 
 env:
   REGISTRY: ghcr.io
