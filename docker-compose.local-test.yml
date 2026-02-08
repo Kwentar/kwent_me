@@ -1,0 +1,41 @@
+services:
+  # 1. Reverse Proxy
+  nginx:
+    image: nginx:alpine
+    ports:
+      - "8080:80" # Будем открывать localhost:8080
+    volumes:
+      - ./nginx.local.conf:/etc/nginx/conf.d/default.conf
+      - ./html:/var/www/html # Главная страница
+      - ./notes/frontend/dist:/var/www/notes # Собранный фронтенд заметок
+    depends_on:
+      - me
+      - notes-backend
+
+  # 2. Identity Service
+  me:
+    build: ./me
+    environment:
+      - PORT=4000
+
+  # 3. Database
+  notes-db:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_USER: user
+      POSTGRES_PASSWORD: password
+      POSTGRES_DB: kwent_notes
+    volumes:
+      - notes_local_data:/var/lib/postgresql/data
+      - ./notes/backend/init.sql:/docker-entrypoint-initdb.d/init.sql
+
+  # 4. Notes Backend
+  notes-backend:
+    build: ./notes/backend
+    environment:
+      DATABASE_URL: postgres://user:password@notes-db:5432/kwent_notes
+    depends_on:
+      - notes-db
+
+volumes:
+  notes_local_data:

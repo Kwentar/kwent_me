@@ -1,0 +1,38 @@
+services:
+  # --- Reverse Proxy (Nginx) ---
+  # В будущем можно упаковать Nginx тоже в Docker, но пока у тебя он на хосте.
+  # Этот файл только для приложений.
+
+  # --- Auth Test Service (/me) ---
+  me:
+    image: ghcr.io/kwentar/kwent_me/me:latest
+    container_name: kwent-me
+    restart: always
+    ports:
+      - "4000:4000"
+
+  # --- Notes App ---
+  notes-db:
+    image: postgres:17-alpine
+    container_name: notes-db
+    restart: always
+    environment:
+      POSTGRES_USER: user
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: kwent_notes
+    volumes:
+      - notes_postgres_data:/var/lib/postgresql/data
+
+  notes-backend:
+    image: ghcr.io/kwentar/kwent_me/notes-backend:latest
+    container_name: notes-backend
+    restart: always
+    environment:
+      DATABASE_URL: postgres://user:${POSTGRES_PASSWORD}@notes-db:5432/kwent_notes
+    depends_on:
+      - notes-db
+    ports:
+      - "3000:3000"
+
+volumes:
+  notes_postgres_data:

@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Kwent.me</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&display=swap');
+        body { font-family: 'Inter', sans-serif; }
+    </style>
+</head>
+<body class="bg-black text-white h-screen flex flex-col items-center justify-center overflow-hidden relative">
+    
+    <!-- Background Gradient -->
+    <div class="absolute inset-0 z-0 opacity-30 bg-gradient-to-br from-blue-900 via-purple-900 to-black"></div>
+
+    <div class="z-10 text-center space-y-8 px-4">
+        <h1 class="text-6xl md:text-8xl font-extrabold tracking-tighter bg-clip-text text-transparent bg-gradient-to-r from-blue-400 to-purple-600">
+            kwent.me
+        </h1>
+        <p class="text-xl md:text-2xl text-gray-400 font-light max-w-lg mx-auto">
+            Personal hub for experimental tools.
+        </p>
+        
+        <div class="flex flex-wrap justify-center gap-4 mt-8">
+            <a href="/notes" class="px-6 py-3 rounded-full bg-white/10 hover:bg-white/20 border border-white/10 transition backdrop-blur-md font-semibold flex items-center gap-2 group">
+                <span>📝 Notes App</span>
+                <span class="opacity-0 group-hover:opacity-100 transition-opacity transform translate-x-1">→</span>
+            </a>
+            <a href="/me" class="px-6 py-3 rounded-full bg-white/5 hover:bg-white/10 border border-white/5 transition backdrop-blur-md font-semibold text-gray-300">
+                🔒 Identity Check
+            </a>
+        </div>
+    </div>
+
+    <footer class="absolute bottom-8 text-gray-600 text-sm z-10">
+        &copy; 2026 Kwent. Under Construction.
+    </footer>
+</body>
+</html>
