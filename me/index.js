@@ -1,16 +1,10 @@
 const fastify = require('fastify')({ logger: true })
 
 fastify.get('/', async (request, reply) => {
-  // Cloudflare передает email в этом заголовке
   const email = request.headers['cf-access-authenticated-user-email'] || 'Anonymous'
   
-  // Для отладки выведем все заголовки, начинающиеся на cf-
-  const cfHeaders = Object.keys(request.headers)
-    .filter(k => k.toLowerCase().startsWith('cf-'))
-    .reduce((obj, k) => {
-      obj[k] = request.headers[k]
-      return obj
-    }, {})
+  // Выводим ВСЕ заголовки для отладки
+  const allHeaders = request.headers
 
   const html = `
     <!DOCTYPE html>
@@ -22,17 +16,17 @@ fastify.get('/', async (request, reply) => {
       <script src="https://cdn.tailwindcss.com"></script>
     </head>
     <body class="bg-slate-900 text-white flex items-center justify-center h-screen">
-      <div class="bg-slate-800 p-8 rounded-xl shadow-2xl max-w-md w-full border border-slate-700">
+      <div class="bg-slate-800 p-8 rounded-xl shadow-2xl max-w-2xl w-full border border-slate-700">
         <div class="flex flex-col items-center">
           <div class="w-16 h-16 bg-blue-500 rounded-full flex items-center justify-center text-3xl mb-4">
             ${email[0].toUpperCase()}
           </div>
-          <h1 class="text-2xl font-bold mb-2">Hello!</h1>
+          <h1 class="text-2xl font-bold mb-2">Identity Check</h1>
           <p class="text-blue-300 text-lg mb-6">${email}</p>
           
-          <div class="w-full bg-slate-900 p-4 rounded-lg text-xs font-mono overflow-auto">
-            <p class="text-gray-500 mb-2">// Debug Info (Cloudflare Headers)</p>
-            <pre>${JSON.stringify(cfHeaders, null, 2)}</pre>
+          <div class="w-full bg-slate-900 p-4 rounded-lg text-xs font-mono overflow-auto max-h-96 text-left">
+            <p class="text-gray-500 mb-2">// All Received Headers:</p>
+            <pre>${JSON.stringify(allHeaders, null, 2)}</pre>
           </div>
         </div>
       </div>
