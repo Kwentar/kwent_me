@@ -119,8 +119,8 @@ jobs:
             
             # Update docker services
             mv docker-compose.prod.yml docker-compose.yml
-            docker-compose pull
-            docker-compose up -d --remove-orphans
+            docker compose pull
+            docker compose up -d --remove-orphans
             
             # Update Nginx config
             cp nginx.conf /etc/nginx/sites-available/kwent_me
