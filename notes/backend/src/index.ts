@@ -33,7 +33,7 @@ const getUserId = async (req: any): Promise<number> => {
   
   // 2. Fallback for local development
   if (!email && (req.headers.host?.includes('localhost') || req.headers.host?.includes('127.0.0.1'))) {
-    email = 'dev@kwent.me'
+    email = 'alekseev.yeskela@gmail.com'
   }
 
   if (!email) {

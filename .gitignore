@@ -34,4 +34,4 @@ yarn-error.log*
 *.sw?
 
 # Project specific
-gemini.md
+# gemini.md (uncomment if you want to hide it)
