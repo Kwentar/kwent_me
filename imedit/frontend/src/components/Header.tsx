@@ -1,5 +1,5 @@
 import React from 'react';
-import { Home, FileText, User, Scissors } from 'lucide-react';
+import { FileText, User, Scissors } from 'lucide-react';
 
 const Header = () => {
   return (
