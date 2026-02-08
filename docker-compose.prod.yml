@@ -5,7 +5,7 @@ services:
 
   # --- Auth Test Service (/me) ---
   me:
-    image: ghcr.io/kwentar/kwent_me/me:latest
+    image: ghcr.io/IMAGE_NAME_PLACEHOLDER/me:latest
     container_name: kwent-me
     restart: always
     ports:
@@ -24,7 +24,7 @@ services:
       - notes_postgres_data:/var/lib/postgresql/data
 
   notes-backend:
-    image: ghcr.io/kwentar/kwent_me/notes-backend:latest
+    image: ghcr.io/IMAGE_NAME_PLACEHOLDER/notes-backend:latest
     container_name: notes-backend
     restart: always
     environment:
