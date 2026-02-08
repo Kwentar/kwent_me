@@ -3,6 +3,29 @@ services:
   # В будущем можно упаковать Nginx тоже в Docker, но пока у тебя он на хосте.
   # Этот файл только для приложений.
 
+  # --- Auth Proxy (Google Login) ---
+  oauth2-proxy:
+    image: quay.io/oauth2-proxy/oauth2-proxy:v7.5.1
+    container_name: oauth2-proxy
+    restart: always
+    environment:
+      OAUTH2_PROXY_CLIENT_ID: ${GOOGLE_CLIENT_ID}
+      OAUTH2_PROXY_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET}
+      OAUTH2_PROXY_COOKIE_SECRET: ${OAUTH2_PROXY_COOKIE_SECRET}
+    command: >
+      --http-address=0.0.0.0:4180
+      --provider=google
+      --email-domain=*
+      --authenticated-emails=alekseev.yeskela@gmail.com
+      --redirect-url=https://kwent.me/oauth2/callback
+      --cookie-secure=true
+      --cookie-domain=kwent.me
+      --cookie-name=_oauth2_proxy
+      --upstream=static://200
+      --reverse-proxy=true
+    ports:
+      - "4180:4180"
+
   # --- Auth Test Service (/me) ---
   me:
     image: ghcr.io/IMAGE_NAME_PLACEHOLDER/me:latest

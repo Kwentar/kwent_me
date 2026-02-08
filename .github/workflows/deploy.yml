@@ -111,6 +111,9 @@ jobs:
             
             # Create .env file
             echo "POSTGRES_PASSWORD=${{ secrets.POSTGRES_PASSWORD }}" > .env
+            echo "GOOGLE_CLIENT_ID=${{ secrets.GOOGLE_CLIENT_ID }}" >> .env
+            echo "GOOGLE_CLIENT_SECRET=${{ secrets.GOOGLE_CLIENT_SECRET }}" >> .env
+            echo "OAUTH2_PROXY_COOKIE_SECRET=${{ secrets.OAUTH2_PROXY_COOKIE_SECRET }}" >> .env
             
             # Sync frontend files to web root
             mkdir -p /var/www/kwent_me/notes
