@@ -109,6 +109,9 @@ jobs:
             
             cd /root/kwent_me
             
+            # Create .env file
+            echo "POSTGRES_PASSWORD=${{ secrets.POSTGRES_PASSWORD }}" > .env
+            
             # Sync frontend files to web root
             mkdir -p /var/www/kwent_me/notes
             cp -r frontend-dist/* /var/www/kwent_me/notes/
