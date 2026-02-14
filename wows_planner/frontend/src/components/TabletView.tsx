@@ -38,6 +38,54 @@ export const TabletView: React.FC<TabletViewProps> = ({ user, tablet, onUpdateTa
   
   const [isOnline] = useState(true);
   const [isInteracting, setIsInteracting] = useState(false);
+  const saveTimeoutRef = useRef<number | null>(null);
+  const socketRef = useRef<WebSocket | null>(null);
+
+  // --- WebSocket Setup ---
+  useEffect(() => {
+    const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+    const host = window.location.host;
+    const socketUrl = `${protocol}//${host}/wows_planner/api/socket/${tablet.id}`;
+    
+    const connect = () => {
+        const ws = new WebSocket(socketUrl);
+        socketRef.current = ws;
+
+        ws.onmessage = (event) => {
+            try {
+                const data = JSON.parse(event.data);
+                if (data.type === 'ping') {
+                    const newPing = data.payload;
+                    setPings(prev => {
+                        if (prev.find(p => p.id === newPing.id)) return prev;
+                        return [...prev, newPing];
+                    });
+                    setTimeout(() => {
+                        setPings(prev => prev.filter(p => p.id !== newPing.id));
+                    }, 1500);
+                }
+                if (data.type === 'state_update') {
+                    // Only apply remote state if we are not acting
+                    if (!isInteracting && Date.now() - lastActionRef.current > 2000) {
+                        setLayers(data.payload.layers);
+                    }
+                }
+            } catch (e) {
+                console.error('WS parse error', e);
+            }
+        };
+
+        ws.onclose = () => {
+            console.log('WS closed, reconnecting...');
+            setTimeout(connect, 2000);
+        };
+    };
+
+    connect();
+    return () => {
+        if (socketRef.current) socketRef.current.close();
+    };
+  }, [tablet.id]); // Removed isInteracting
 
   // --- Session & Permissions Polling ---
   useEffect(() => {
@@ -71,8 +119,9 @@ export const TabletView: React.FC<TabletViewProps> = ({ user, tablet, onUpdateTa
                   return combined.filter(p => Date.now() - p.createdAt < 10000);
               });
 
-              // SYNC LAYERS: (Only sync layers if idle to avoid jitter)
-              if (!isInteracting && Date.now() - lastActionRef.current > 3000) {
+              // SYNC LAYERS: (Crucial: ignore if we are acting)
+              const isIdle = !isInteracting && (Date.now() - lastActionRef.current > 3000);
+              if (isIdle) {
                   setLayers(updated.layers);
               }
           } catch (e) {
@@ -120,15 +169,32 @@ export const TabletView: React.FC<TabletViewProps> = ({ user, tablet, onUpdateTa
       }
   };
 
+  const debouncedSync = (newLayers: Layer[]) => {
+      if (saveTimeoutRef.current) window.clearTimeout(saveTimeoutRef.current);
+      
+      // Real-time broadcast via WS (MOMENTARY)
+      if (socketRef.current?.readyState === WebSocket.OPEN) {
+          socketRef.current.send(JSON.stringify({
+              type: 'state_update',
+              payload: { layers: newLayers }
+          }));
+      }
+
+      saveTimeoutRef.current = window.setTimeout(() => {
+          onUpdateTablet({
+              ...tablet,
+              layers: newLayers,
+              lastModified: Date.now()
+          });
+          saveTimeoutRef.current = null;
+      }, 1000); // 1s for database save
+  };
+
   const updateTabletData = (newLayers: Layer[]) => {
       if (!canEdit) return; 
       markAction();
       setLayers(newLayers);
-      onUpdateTablet({
-          ...tablet,
-          layers: newLayers,
-          lastModified: Date.now()
-      });
+      debouncedSync(newLayers);
   };
 
   const handleUpdateLayer = (layerId: string, items: TacticalItem[]) => {
@@ -183,7 +249,6 @@ export const TabletView: React.FC<TabletViewProps> = ({ user, tablet, onUpdateTa
   };
 
   const handlePing = (x: number, y: number) => {
-    console.log('handlePing triggered', x, y);
     markAction();
     const newPing: Ping = {
         id: crypto.randomUUID(),
@@ -197,10 +262,16 @@ export const TabletView: React.FC<TabletViewProps> = ({ user, tablet, onUpdateTa
         setPings(prev => prev.filter(p => p.id !== newPing.id));
     }, 1500);
     
-    // Send to server
-    api.updateTablet(tablet.id, { pings: [newPing] } as any)
-       .then(() => console.log('Ping sent success'))
-       .catch(e => console.error('Ping send error', e));
+    // Send via WS (MOMENTARY)
+    if (socketRef.current?.readyState === WebSocket.OPEN) {
+        socketRef.current.send(JSON.stringify({
+            type: 'ping',
+            payload: newPing
+        }));
+    }
+
+    // Send to server via HTTP (for DB persistence / history)
+    api.updateTablet(tablet.id, { pings: [newPing] } as any).catch(console.error);
   };
 
   // --- Effects ---

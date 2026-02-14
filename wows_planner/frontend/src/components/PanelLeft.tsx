@@ -170,7 +170,7 @@ export const PanelLeft: React.FC<PanelLeftProps> = ({
                      <div 
                         key={u.id}
                         onClick={() => onToggleUserPermission(u.id)}
-                        className={`flex items-center justify-between p-2 rounded border ${isOwner && u.id !== currentUser.id ? 'cursor-pointer hover:bg-slate-800' : 'cursor-default'} ${u.id === currentUser.id ? 'bg-slate-800/30 border-slate-700' : 'border-transparent'}`}
+                        className={`flex items-center justify-between p-2 rounded border ${isOwner && u.id.toString() !== currentUser.id.toString() ? 'cursor-pointer hover:bg-slate-800' : 'cursor-default'} ${u.id.toString() === currentUser.id.toString() ? 'bg-slate-800/30 border-slate-700' : 'border-transparent'}`}
                      >
                         <div className="flex items-center gap-3">
                             <div className="relative">
@@ -185,7 +185,8 @@ export const PanelLeft: React.FC<PanelLeftProps> = ({
                             </div>
                             <div>
                                 <div className="text-sm font-medium text-slate-200 flex items-center gap-1">
-                                    {u.id === currentUser?.id && isEditingName ? (
+                                    {/* DEBUG: {console.log('Comparing:', u.id, currentUser?.id)} */}
+                                    {u.id.toString() === currentUser?.id.toString() && isEditingName ? (
                                         <div className="flex items-center gap-1" onClick={e => e.stopPropagation()}>
                                             <input 
                                                 value={newName} 
@@ -199,7 +200,7 @@ export const PanelLeft: React.FC<PanelLeftProps> = ({
                                     ) : (
                                         <>
                                             {u.name}
-                                            {u.id === currentUser?.id && (
+                                            {u.id.toString() === currentUser?.id.toString() && (
                                                 <>
                                                     <span className="text-[10px] text-slate-500">(You)</span>
                                                     <button onClick={(e) => { e.stopPropagation(); handleStartEdit(u.name); }} className="text-slate-500 hover:text-blue-400 ml-1">
