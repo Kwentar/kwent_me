@@ -57,16 +57,6 @@ export const api = {
     });
   },
 
-  async updatePings(tabletId: string, pings: Ping[]): Promise<void> {
-      // We only update the pings field in state, but backend expects whole state.
-      // So we'll let TabletView handle merging.
-      await fetch(`${API_BASE}/planners/${tabletId}`, {
-          method: 'PATCH',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ state_merge: { pings } }) // Concept: partial update
-      });
-  },
-
   async getTablet(id: string): Promise<Tablet & { canEdit: boolean }> {
       const res = await fetch(`${API_BASE}/planners/${id}`);
       if (!res.ok) throw new Error('Failed to fetch tablet');
@@ -99,10 +89,11 @@ export const api = {
       });
   },
 
-  async updateTablet(id: string, data: Partial<Tablet>): Promise<void> {
+  async updateTablet(id: string, data: Partial<Tablet> & { pings?: Ping[] }): Promise<void> {
     const payload: any = {};
     if (data.name) payload.title = data.name;
     if (data.layers) payload.state = { layers: data.layers };
+    if (data.pings) payload.pings = data.pings;
 
     await fetch(`${API_BASE}/planners/${id}`, {
       method: 'PATCH',

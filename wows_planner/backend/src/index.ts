@@ -5,7 +5,8 @@ import cookie from '@fastify/cookie'
 import { v4 as uuidv4 } from 'uuid'
 
 const fastify = Fastify({
-  logger: true
+  logger: true,
+  bodyLimit: 10485760 // 10MB
 })
 
 // Plugins
