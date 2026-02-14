@@ -8,6 +8,7 @@ services:
       - ./notes/frontend/dist:/var/www/notes
       - ./imedit/frontend/dist:/var/www/imedit
       - ./wows_planner/frontend/dist:/var/www/wows_planner
+      - ./wows_planner/uploads:/var/www/wows_planner_uploads
     ports:
       - "8080:80"
     depends_on:
@@ -60,6 +61,8 @@ services:
       COOKIE_SECRET: secret
     depends_on:
       - wows-planner-db
+    volumes:
+      - ./wows_planner/uploads:/app/uploads
 
 volumes:
   notes_local_data:

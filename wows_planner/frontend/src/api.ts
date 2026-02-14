@@ -89,6 +89,18 @@ export const api = {
       });
   },
 
+  async uploadFile(file: File): Promise<string> {
+    const formData = new FormData();
+    formData.append('file', file);
+    const res = await fetch(`${API_BASE}/upload`, {
+        method: 'POST',
+        body: formData
+    });
+    if (!res.ok) throw new Error('Upload failed');
+    const data = await res.json();
+    return data.url;
+  },
+
   async updateTablet(id: string, data: Partial<Tablet> & { pings?: Ping[] }): Promise<void> {
     const payload: any = {};
     if (data.name) payload.title = data.name;

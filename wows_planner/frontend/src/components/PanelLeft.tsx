@@ -8,7 +8,7 @@ interface PanelLeftProps {
   onSelectLayer: (id: string) => void;
   onAddLayer: () => void;
   onDeleteLayer: (id: string) => void;
-  onUpdateLayerMap: (id: string, url: string) => void;
+  onUpdateLayerMap: (id: string, fileOrUrl: string | File) => void;
   onToggleVisibility: (id: string) => void;
   
   // New props for User Management
@@ -55,13 +55,7 @@ export const PanelLeft: React.FC<PanelLeftProps> = ({
   const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file && activeLayerId) {
-      const reader = new FileReader();
-      reader.onload = (ev) => {
-        if (ev.target?.result) {
-          onUpdateLayerMap(activeLayerId, ev.target.result as string);
-        }
-      };
-      reader.readAsDataURL(file);
+      onUpdateLayerMap(activeLayerId, file);
     }
     e.target.value = '';
   };

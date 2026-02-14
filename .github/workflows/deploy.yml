@@ -163,7 +163,8 @@ jobs:
             mkdir -p /var/www/kwent_me/imedit
             cp -r imedit-dist/* /var/www/kwent_me/imedit/
 
-            mkdir -p /var/www/kwent_me/wows_planner
+            mkdir -p /var/www/kwent_me/wows_planner/uploads
+            chmod 777 /var/www/kwent_me/wows_planner/uploads
             cp -r wows-planner-dist/* /var/www/kwent_me/wows_planner/
             
             mkdir -p /var/www/kwent_me/html

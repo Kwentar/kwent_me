@@ -2,19 +2,30 @@ import Fastify from 'fastify'
 import cors from '@fastify/cors'
 import postgres from '@fastify/postgres'
 import cookie from '@fastify/cookie'
+import multipart from '@fastify/multipart'
 import { v4 as uuidv4 } from 'uuid'
+import fs from 'fs'
+import path from 'path'
+import crypto from 'crypto'
 
 const fastify = Fastify({
   logger: true,
   bodyLimit: 52428800 // 50MB
 })
 
+// Ensure uploads directory exists
+const UPLOAD_DIR = path.join(process.cwd(), 'uploads')
+if (!fs.existsSync(UPLOAD_DIR)) {
+  fs.mkdirSync(UPLOAD_DIR, { recursive: true })
+}
+
 // Plugins
 await fastify.register(cors, {
-  origin: '*', // Adjust for prod later
+  origin: '*', 
   credentials: true
 })
 await fastify.register(cookie)
+await fastify.register(multipart)
 
 // Database connection
 await fastify.register(postgres, {
@@ -46,23 +57,17 @@ const getUserId = async (req: any, reply: any): Promise<number> => {
     let userId: number | null = null
 
     if (email) {
-      // Authenticated User
-      // Check if user exists by email
       const { rows } = await client.query('SELECT id FROM users WHERE email = $1', [email])
       if (rows.length > 0) {
         userId = rows[0].id
       } else {
-        // Create new user
         const insertRes = await client.query(
           'INSERT INTO users (email) VALUES ($1) RETURNING id',
           [email]
         )
         userId = insertRes.rows[0].id
       }
-      
-      // If user had anon_id previously (maybe convert anon content? - skipping for MVP)
     } else if (anonId) {
-      // Anonymous User
       const { rows } = await client.query('SELECT id FROM users WHERE anon_id = $1', [anonId])
       if (rows.length > 0) {
         userId = rows[0].id
@@ -133,6 +138,24 @@ fastify.patch<{ Body: { name?: string } }>('/api/me', withUser(async (req, reply
   }
 }))
 
+// POST /api/upload
+fastify.post('/api/upload', withUser(async (req, reply, userId) => {
+  const data = await req.file()
+  if (!data) return reply.code(400).send({ error: 'No file uploaded' })
+
+  const buffer = await data.toBuffer()
+  const hash = crypto.createHash('sha256').update(buffer).digest('hex')
+  const ext = path.extname(data.filename)
+  const filename = `${hash}${ext}`
+  const filepath = path.join(UPLOAD_DIR, filename)
+
+  if (!fs.existsSync(filepath)) {
+    fs.writeFileSync(filepath, buffer)
+  }
+
+  return { url: `/wows_planner/uploads/${filename}` }
+}))
+
 // GET /api/planners
 fastify.get('/api/planners', withUser(async (req, reply, userId) => {
   const client = await fastify.pg.connect()
@@ -190,7 +213,7 @@ fastify.get<{ Params: { id: string } }>('/api/planners/:id', withUser(async (req
 // PATCH /api/planners/:id
 fastify.patch<{ Params: { id: string }, Body: any }>('/api/planners/:id', withUser(async (req, reply, userId) => {
   const publicId = req.params.id
-  const { title, map_url, state } = req.body
+  const { title, map_url, state, pings } = req.body
   req.log.info({ publicId, userId }, 'PATCH request received')
   
   const client = await fastify.pg.connect()
@@ -200,10 +223,7 @@ fastify.patch<{ Params: { id: string }, Body: any }>('/api/planners/:id', withUs
     if (pRows.length === 0) return reply.code(404).send({ error: 'Not found' })
     const plannerId = pRows[0].id
 
-    // Check permissions? (Assuming owner or can_edit permission needed)
-    // For now owner check is implicit in WHERE clause of update or we check permissions table.
-    // Let's allow update if user is owner OR has permission.
-    
+    // Check permissions
     const { rows: permRows } = await client.query(
         `SELECT 1 FROM planners p 
          LEFT JOIN tablet_permissions tp ON tp.tablet_id = p.id AND tp.user_id = $2
@@ -230,7 +250,6 @@ fastify.patch<{ Params: { id: string }, Body: any }>('/api/planners/:id', withUs
     }
     
     // Support for merging pings specifically to avoid overwriting ships
-    const { pings } = req.body
     if (pings !== undefined) {
         updates.push(`state = state || jsonb_build_object('pings', $${paramIndex++}::jsonb)`)
         values.push(JSON.stringify(pings))

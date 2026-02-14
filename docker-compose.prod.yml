@@ -84,6 +84,8 @@ services:
       - wows-planner-db
     ports:
       - "3001:3000"
+    volumes:
+      - /var/www/kwent_me/wows_planner/uploads:/app/uploads
 
 volumes:
   notes_postgres_data:

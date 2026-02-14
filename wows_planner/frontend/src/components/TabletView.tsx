@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { PanelLeft } from './PanelLeft';
 import { PanelRight } from './PanelRight';
 import { TacticalMap } from './TacticalMap';
@@ -18,6 +18,10 @@ export const TabletView: React.FC<TabletViewProps> = ({ user, tablet, onUpdateTa
   const isOwner = user?.id.toString() === tablet.ownerId.toString();
   const [sessionUsers, setSessionUsers] = useState<SessionUser[]>([]);
   const [canEdit, setCanEdit] = useState(isOwner || (tablet as any).canEdit);
+
+  // Anti-jitter: ignore updates for X ms after local action
+  const lastActionRef = useRef(0);
+  const markAction = () => { lastActionRef.current = Date.now(); };
 
   // --- State ---
   const [layers, setLayers] = useState<Layer[]>(tablet.layers);
@@ -55,8 +59,11 @@ export const TabletView: React.FC<TabletViewProps> = ({ user, tablet, onUpdateTa
               }
 
               // 4. SYNC DATA: Fetch tablet data to get changes from others
-              if (!isInteracting) {
+              // We only overwrite if user is NOT currently dragging/rotating AND hasn't acted recently
+              if (!isInteracting && Date.now() - lastActionRef.current > 3000) {
                   const updated = await api.getTablet(tablet.id);
+                  // Check if actually newer to avoid glitches?
+                  // For now, trusting lastActionRef is enough to prevent self-overwrite.
                   setLayers(updated.layers);
                   
                   // SYNC PINGS:
@@ -84,11 +91,12 @@ export const TabletView: React.FC<TabletViewProps> = ({ user, tablet, onUpdateTa
   // --- Handlers ---
 
   const handleUpdateName = async (name: string) => {
+      markAction();
       if (user) {
           try {
               await api.updateMe(name);
               // Optimistic update local session users list
-              setSessionUsers(prev => prev.map(u => u.id === user.id.toString() ? { ...u, name: name } : u));
+              setSessionUsers(prev => prev.map(u => u.id === user.id ? { ...u, name: name } : u));
           } catch (e) {
               console.error(e);
           }
@@ -96,6 +104,7 @@ export const TabletView: React.FC<TabletViewProps> = ({ user, tablet, onUpdateTa
   };
 
   const handleToggleUserPermission = async (userId: string) => {
+      markAction();
       if (!isOwner) return;
       const targetUser = sessionUsers.find(u => u.id === userId);
       if (!targetUser) return;
@@ -116,6 +125,7 @@ export const TabletView: React.FC<TabletViewProps> = ({ user, tablet, onUpdateTa
 
   const updateTabletData = (newLayers: Layer[]) => {
       if (!canEdit) return; 
+      markAction();
       setLayers(newLayers);
       onUpdateTablet({
           ...tablet,
@@ -126,18 +136,32 @@ export const TabletView: React.FC<TabletViewProps> = ({ user, tablet, onUpdateTa
 
   const handleUpdateLayer = (layerId: string, items: TacticalItem[]) => {
     if (!canEdit) return;
+    markAction();
     const newLayers = layers.map(l => l.id === layerId ? { ...l, items } : l);
     updateTabletData(newLayers);
   };
 
-  const handleUpdateLayerMap = (layerId: string, url: string) => {
+  const handleUpdateLayerMap = async (layerId: string, fileOrUrl: string | File) => {
     if (!canEdit) return;
+    markAction();
+    
+    let url = typeof fileOrUrl === 'string' ? fileOrUrl : '';
+    if (fileOrUrl instanceof File) {
+        try {
+            url = await api.uploadFile(fileOrUrl);
+        } catch (e) {
+            console.error("Upload failed", e);
+            return;
+        }
+    }
+
     const newLayers = layers.map(l => l.id === layerId ? { ...l, backgroundImage: url } : l);
     updateTabletData(newLayers);
   };
 
   const handleAddLayer = () => {
     if (!canEdit) return;
+    markAction();
     const newLayer: Layer = {
       id: crypto.randomUUID(),
       name: `Tactic ${layers.length + 1}`,
@@ -152,6 +176,7 @@ export const TabletView: React.FC<TabletViewProps> = ({ user, tablet, onUpdateTa
 
   const handleDeleteLayer = (id: string) => {
     if (!canEdit) return;
+    markAction();
     if (layers.length <= 1) return;
     const newLayers = layers.filter(l => l.id !== id);
     updateTabletData(newLayers);
@@ -160,7 +185,8 @@ export const TabletView: React.FC<TabletViewProps> = ({ user, tablet, onUpdateTa
     }
   };
 
-  const handlePing = async (x: number, y: number) => {
+  const handlePing = (x: number, y: number) => {
+    markAction();
     const newPing: Ping = {
         id: crypto.randomUUID(),
         x,
@@ -168,19 +194,13 @@ export const TabletView: React.FC<TabletViewProps> = ({ user, tablet, onUpdateTa
         color: pingColor,
         createdAt: Date.now()
     };
-    // Add locally
     setPings(prev => [...prev, newPing]);
-    
-    // Save to DB for others to see
-    try {
-        await api.updateTablet(tablet.id, { pings: [newPing] } as any);
-    } catch (e) {
-        console.error("Failed to share ping", e);
-    }
-
     setTimeout(() => {
         setPings(prev => prev.filter(p => p.id !== newPing.id));
-    }, 5000); // Keep longer since polling is slow
+    }, 1500);
+    
+    // Send to server
+    api.updateTablet(tablet.id, { pings: [newPing] } as any).catch(console.error);
   };
 
   // --- Effects ---
