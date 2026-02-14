@@ -59,24 +59,21 @@ export const TabletView: React.FC<TabletViewProps> = ({ user, tablet, onUpdateTa
               }
 
               // 4. SYNC DATA: Fetch tablet data to get changes from others
-              // We only overwrite if user is NOT currently dragging/rotating AND hasn't acted recently
+              const updated = await api.getTablet(tablet.id);
+              
+              // SYNC PINGS: (Always sync pings, even if interacting)
+              const remotePings = (updated as any).state?.pings || [];
+              const now = Date.now();
+              const freshPings = remotePings.filter((p: any) => now - p.createdAt < 10000);
+              setPings(prev => {
+                  const localIds = new Set(prev.map(p => p.id));
+                  const combined = [...prev, ...freshPings.filter((rp: any) => !localIds.has(rp.id))];
+                  return combined.filter(p => Date.now() - p.createdAt < 10000);
+              });
+
+              // SYNC LAYERS: (Only sync layers if idle to avoid jitter)
               if (!isInteracting && Date.now() - lastActionRef.current > 3000) {
-                  const updated = await api.getTablet(tablet.id);
-                  // Check if actually newer to avoid glitches?
-                  // For now, trusting lastActionRef is enough to prevent self-overwrite.
                   setLayers(updated.layers);
-                  
-                  // SYNC PINGS:
-                  const remotePings = (updated as any).state?.pings || [];
-                  const now = Date.now();
-                  // Only keep pings from last 10 seconds
-                  const freshPings = remotePings.filter((p: any) => now - p.createdAt < 10000);
-                  setPings(prev => {
-                      // Merge local and remote, avoid duplicates
-                      const localIds = new Set(prev.map(p => p.id));
-                      const combined = [...prev, ...freshPings.filter((rp: any) => !localIds.has(rp.id))];
-                      return combined.filter(p => now - p.createdAt < 10000);
-                  });
               }
           } catch (e) {
               console.error("Session poll error", e);
@@ -186,6 +183,7 @@ export const TabletView: React.FC<TabletViewProps> = ({ user, tablet, onUpdateTa
   };
 
   const handlePing = (x: number, y: number) => {
+    console.log('handlePing triggered', x, y);
     markAction();
     const newPing: Ping = {
         id: crypto.randomUUID(),
@@ -200,7 +198,9 @@ export const TabletView: React.FC<TabletViewProps> = ({ user, tablet, onUpdateTa
     }, 1500);
     
     // Send to server
-    api.updateTablet(tablet.id, { pings: [newPing] } as any).catch(console.error);
+    api.updateTablet(tablet.id, { pings: [newPing] } as any)
+       .then(() => console.log('Ping sent success'))
+       .catch(e => console.error('Ping send error', e));
   };
 
   // --- Effects ---

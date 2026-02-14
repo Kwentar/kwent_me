@@ -13,377 +13,193 @@ const fastify = Fastify({
   bodyLimit: 52428800 // 50MB
 })
 
-// Ensure uploads directory exists
 const UPLOAD_DIR = path.join(process.cwd(), 'uploads')
 if (!fs.existsSync(UPLOAD_DIR)) {
   fs.mkdirSync(UPLOAD_DIR, { recursive: true })
 }
 
 // Plugins
-await fastify.register(cors, {
-  origin: '*', 
-  credentials: true
-})
-await fastify.register(cookie)
-await fastify.register(multipart)
-
-// Database connection
-await fastify.register(postgres, {
+fastify.register(cors, { origin: '*', credentials: true })
+fastify.register(cookie)
+fastify.register(multipart)
+fastify.register(postgres, {
   connectionString: process.env.DATABASE_URL || 'postgres://user:password@wows-planner-db:5432/wows_planner'
 })
 
-// Auth Middleware (combined Logic)
 const getUserId = async (req: any, reply: any): Promise<number> => {
   let email = req.headers['cf-access-authenticated-user-email']
-  
-  // Local dev fallback for email
-  if (!email && (req.headers.host?.includes('localhost') || req.headers.host?.includes('127.0.0.1'))) {
-    // email = 'alekseev.yeskela@gmail.com' // Uncomment to simulate logged-in user locally
-  }
-
   let anonId = req.cookies['wows_anon_id']
-  if (!anonId && !email) {
+  
+  if (!email && !anonId) {
     anonId = uuidv4()
-    reply.setCookie('wows_anon_id', anonId, {
-      path: '/',
-      httpOnly: true,
-      secure: process.env.NODE_ENV === 'production',
-      maxAge: 31536000 // 1 year
-    })
+    reply.setCookie('wows_anon_id', anonId, { path: '/', httpOnly: true, secure: false, maxAge: 31536000 })
   }
 
   const client = await fastify.pg.connect()
   try {
     let userId: number | null = null
-
     if (email) {
       const { rows } = await client.query('SELECT id FROM users WHERE email = $1', [email])
-      if (rows.length > 0) {
-        userId = rows[0].id
-      } else {
-        const insertRes = await client.query(
-          'INSERT INTO users (email) VALUES ($1) RETURNING id',
-          [email]
-        )
-        userId = insertRes.rows[0].id
+      if (rows.length > 0) userId = rows[0].id
+      else {
+        const res = await client.query('INSERT INTO users (email) VALUES ($1) RETURNING id', [email])
+        userId = res.rows[0].id
       }
-    } else if (anonId) {
+    } else {
       const { rows } = await client.query('SELECT id FROM users WHERE anon_id = $1', [anonId])
-      if (rows.length > 0) {
-        userId = rows[0].id
-      } else {
-        const insertRes = await client.query(
-          'INSERT INTO users (anon_id) VALUES ($1) RETURNING id',
-          [anonId]
-        )
-        userId = insertRes.rows[0].id
+      if (rows.length > 0) userId = rows[0].id
+      else {
+        const res = await client.query('INSERT INTO users (anon_id) VALUES ($1) RETURNING id', [anonId])
+        userId = res.rows[0].id
       }
     }
-
-    if (!userId) throw new Error('Failed to identify user')
-    return userId
+    return userId!
   } finally {
     client.release()
   }
 }
 
-// Wrapper
-const withUser = (handler: (req: any, reply: any, userId: number) => Promise<any>) => {
-  return async (req: any, reply: any) => {
-    try {
-      const userId = await getUserId(req, reply)
-      return await handler(req, reply, userId)
-    } catch (err: any) {
-      req.log.error(err)
-      return reply.code(500).send({ error: err.message })
-    }
+const withUser = (handler: any) => async (req: any, reply: any) => {
+  try {
+    const userId = await getUserId(req, reply)
+    req.log.info({ userId, url: req.url }, 'Authenticated User')
+    return await handler(req, reply, userId)
+  } catch (err: any) {
+    req.log.error(err)
+    return reply.code(500).send({ error: err.message })
   }
 }
 
-// Routes
-fastify.get('/api/health', async () => {
-  return { status: 'ok' }
-})
+// API Routes (Prefix-less for reliability with current Nginx config)
+fastify.get('/health', async () => ({ status: 'ok' }))
 
-// GET /api/me
-fastify.get('/api/me', withUser(async (req, reply, userId) => {
-  const client = await fastify.pg.connect()
-  try {
-    const { rows } = await client.query('SELECT id, email, anon_id, name FROM users WHERE id = $1', [userId])
-    if (rows.length === 0) return reply.code(404).send({ error: 'User not found' })
-    
-    const user = rows[0]
-    return {
-      id: user.id,
-      email: user.email,
-      isAnonymous: !user.email,
-      name: user.name || (user.email ? user.email.split('@')[0] : 'Guest Commander')
-    }
-  } finally {
-    client.release()
-  }
+fastify.get('/me', withUser(async (req: any, reply: any, userId: number) => {
+  const { rows } = await fastify.pg.query('SELECT id, email, name FROM users WHERE id = $1', [userId])
+  if (rows.length === 0) return reply.code(404).send({ error: 'User not found' })
+  const u = rows[0]
+  return { id: u.id, email: u.email, isAnonymous: !u.email, name: u.name || 'Commander' }
 }))
 
-// PATCH /api/me
-fastify.patch<{ Body: { name?: string } }>('/api/me', withUser(async (req, reply, userId) => {
-  const { name } = req.body
-  if (!name) return reply.code(400).send({ error: 'Name is required' })
-
-  const client = await fastify.pg.connect()
-  try {
-    await client.query('UPDATE users SET name = $1 WHERE id = $2', [name, userId])
-    return { success: true, name }
-  } finally {
-    client.release()
-  }
-}))
-
-// POST /api/upload
-fastify.post('/api/upload', withUser(async (req, reply, userId) => {
+fastify.post('/upload', withUser(async (req: any, reply: any, userId: number) => {
   const data = await req.file()
-  if (!data) return reply.code(400).send({ error: 'No file uploaded' })
-
+  if (!data) return reply.code(400).send({ error: 'No file' })
   const buffer = await data.toBuffer()
-  const hash = crypto.createHash('sha256').update(buffer).digest('hex')
-  const ext = path.extname(data.filename)
-  const filename = `${hash}${ext}`
-  const filepath = path.join(UPLOAD_DIR, filename)
-
-  if (!fs.existsSync(filepath)) {
-    fs.writeFileSync(filepath, buffer)
-  }
-
+  const filename = `${crypto.createHash('sha256').update(buffer).digest('hex')}${path.extname(data.filename)}`
+  fs.writeFileSync(path.join(UPLOAD_DIR, filename), buffer)
   return { url: `/wows_planner/uploads/${filename}` }
 }))
 
-// GET /api/planners
-fastify.get('/api/planners', withUser(async (req, reply, userId) => {
-  const client = await fastify.pg.connect()
-  try {
-    const { rows } = await client.query(
-      'SELECT public_id as id, user_id, title, map_url, created_at, updated_at FROM planners WHERE user_id = $1 ORDER BY updated_at DESC',
-      [userId]
-    )
-    return rows
-  } finally {
-    client.release()
+fastify.get('/planners', withUser(async (req: any, reply: any, userId: number) => {
+  const { rows } = await fastify.pg.query('SELECT public_id as id, title, created_at, user_id FROM planners WHERE user_id = $1 ORDER BY updated_at DESC', [userId])
+  return rows
+}))
+
+fastify.post('/planners', withUser(async (req: any, reply: any, userId: number) => {
+  const { title, state } = req.body as any
+  const { rows } = await fastify.pg.query(
+    'INSERT INTO planners (user_id, title, state) VALUES ($1, $2, $3) RETURNING public_id as id, user_id, title, state, created_at',
+    [userId, title || 'New Battle Plan', state || { layers: [] }]
+  )
+  return rows[0]
+}))
+
+fastify.get('/planners/:id', withUser(async (req: any, reply: any, userId: number) => {
+  const { rows } = await fastify.pg.query(
+    `SELECT p.public_id as id, p.title, p.state, p.user_id, 
+            (p.user_id = $2) as is_owner, 
+            COALESCE(perm.can_edit, FALSE) as has_edit_perm
+     FROM planners p 
+     LEFT JOIN tablet_permissions perm ON perm.tablet_id = p.id AND perm.user_id = $2
+     WHERE p.public_id = $1`, [req.params.id, userId])
+  if (rows.length === 0) return reply.code(404).send({ error: 'Not found' })
+  const planner = rows[0]
+  return { 
+    ...planner, 
+    can_edit: planner.is_owner || planner.has_edit_perm 
   }
 }))
 
-// POST /api/planners
-fastify.post('/api/planners', withUser(async (req, reply, userId) => {
-  const client = await fastify.pg.connect()
-  try {
-    const { title, map_url, state } = req.body as any
-    const { rows } = await client.query(
-      'INSERT INTO planners (user_id, title, map_url, state) VALUES ($1, $2, $3, $4) RETURNING public_id as id, user_id, title, map_url, state, created_at, updated_at',
-      [userId, title || 'New Battle Plan', map_url, state || '{}']
-    )
-    return rows[0]
-  } finally {
-    client.release()
-  }
-}))
+fastify.patch('/planners/:id', withUser(async (req: any, reply: any, userId: number) => {
+  const { title, state, pings } = req.body as any
+  const { rows: pRows } = await fastify.pg.query('SELECT id, user_id FROM planners WHERE public_id = $1', [req.params.id])
+  if (pRows.length === 0) return reply.code(404).send({ error: 'Not found' })
+  const pid = pRows[0].id
+  const ownerId = pRows[0].user_id
 
-// GET /api/planners/:id
-fastify.get<{ Params: { id: string } }>('/api/planners/:id', withUser(async (req, reply, userId) => {
-  const publicId = req.params.id
-  const client = await fastify.pg.connect()
-  try {
-    const { rows } = await client.query(
-      `SELECT p.public_id as id, p.title, p.map_url, p.state, p.created_at, p.updated_at, p.user_id,
-              (p.user_id = $2) as is_owner,
-              COALESCE(perm.can_edit, FALSE) as has_edit_perm
-       FROM planners p
-       LEFT JOIN tablet_permissions perm ON perm.tablet_id = p.id AND perm.user_id = $2
-       WHERE p.public_id = $1`,
-      [publicId, userId]
-    )
-    if (rows.length === 0) return reply.code(404).send({ error: 'Not found' })
-    
-    return {
-        ...rows[0],
-        can_edit: rows[0].is_owner || rows[0].has_edit_perm
-    }
-  } finally {
-    client.release()
+  // Check permissions
+  let canEdit = (ownerId === userId)
+  if (!canEdit) {
+    const { rows: permRows } = await fastify.pg.query('SELECT can_edit FROM tablet_permissions WHERE tablet_id = $1 AND user_id = $2', [pid, userId])
+    if (permRows.length > 0 && permRows[0].can_edit) canEdit = true
   }
-}))
 
-// PATCH /api/planners/:id
-fastify.patch<{ Params: { id: string }, Body: any }>('/api/planners/:id', withUser(async (req, reply, userId) => {
-  const publicId = req.params.id
-  const { title, map_url, state, pings } = req.body
-  req.log.info({ publicId, userId }, 'PATCH request received')
+  // Determine if this is a restricted update (ships/title) or a public update (pings)
+  const isRestrictedUpdate = title !== undefined || state !== undefined
+  const isPingOnly = !isRestrictedUpdate && pings !== undefined
+
+  if (!canEdit && !isPingOnly) {
+    req.log.warn({ userId, ownerId, pid }, 'Access Denied')
+    return reply.code(403).send({ error: 'Forbidden' })
+  }
+
+  if (title !== undefined) await fastify.pg.query('UPDATE planners SET title = $1, updated_at = NOW() WHERE id = $2', [title, pid])
+  if (state !== undefined) await fastify.pg.query('UPDATE planners SET state = $1, updated_at = NOW() WHERE id = $2', [JSON.stringify(state), pid])
+  if (pings !== undefined) {
+    await fastify.pg.query("UPDATE planners SET state = state || jsonb_build_object('pings', $1::jsonb), updated_at = NOW() WHERE id = $2", [JSON.stringify(pings), pid])
+  }
   
-  const client = await fastify.pg.connect()
-  try {
-    // Resolve ID
-    const { rows: pRows } = await client.query('SELECT id FROM planners WHERE public_id = $1', [publicId])
-    if (pRows.length === 0) return reply.code(404).send({ error: 'Not found' })
-    const plannerId = pRows[0].id
-
-    // Check permissions
-    const { rows: permRows } = await client.query(
-        `SELECT 1 FROM planners p 
-         LEFT JOIN tablet_permissions tp ON tp.tablet_id = p.id AND tp.user_id = $2
-         WHERE p.id = $1 AND (p.user_id = $2 OR tp.can_edit = TRUE)`,
-        [plannerId, userId]
-    )
-    if (permRows.length === 0) return reply.code(403).send({ error: 'Forbidden' })
-
-    const updates: string[] = []
-    const values: any[] = []
-    let paramIndex = 1
-
-    if (title !== undefined) {
-      updates.push(`title = $${paramIndex++}`)
-      values.push(title)
-    }
-    if (map_url !== undefined) {
-      updates.push(`map_url = $${paramIndex++}`)
-      values.push(map_url)
-    }
-    if (state !== undefined) {
-      updates.push(`state = $${paramIndex++}`)
-      values.push(JSON.stringify(state))
-    }
-    
-    // Support for merging pings specifically to avoid overwriting ships
-    if (pings !== undefined) {
-        updates.push(`state = state || jsonb_build_object('pings', $${paramIndex++}::jsonb)`)
-        values.push(JSON.stringify(pings))
-    }
-
-    if (updates.length === 0) return reply.code(400).send({ error: 'No fields to update' })
-
-    updates.push(`updated_at = NOW()`)
-    values.push(plannerId)
-
-    const query = `
-      UPDATE planners 
-      SET ${updates.join(', ')} 
-      WHERE id = $${paramIndex++}
-      RETURNING public_id as id
-    `
-    const { rows } = await client.query(query, values)
-    return rows[0]
-  } finally {
-    client.release()
-  }
+  return { success: true }
 }))
 
-// DELETE /api/planners/:id
-fastify.delete<{ Params: { id: string } }>('/api/planners/:id', withUser(async (req, reply, userId) => {
-  const publicId = req.params.id
-  const client = await fastify.pg.connect()
-  try {
-    const { rowCount } = await client.query(
-      'DELETE FROM planners WHERE public_id = $1 AND user_id = $2',
-      [publicId, userId]
-    )
-    if (rowCount === 0) return reply.code(404).send({ error: 'Not found or not authorized' })
-    return { success: true }
-  } finally {
-    client.release()
-  }
+fastify.delete('/planners/:id', withUser(async (req: any, reply: any, userId: number) => {
+  const { rowCount } = await fastify.pg.query('DELETE FROM planners WHERE public_id = $1 AND user_id = $2', [req.params.id, userId])
+  if (rowCount === 0) return reply.code(403).send({ error: 'Not authorized' })
+  return { success: true }
 }))
 
-// POST /api/planners/:id/heartbeat
-fastify.post<{ Params: { id: string } }>('/api/planners/:id/heartbeat', withUser(async (req, reply, userId) => {
-  const publicId = req.params.id
-  const client = await fastify.pg.connect()
-  try {
-    const { rows } = await client.query('SELECT id FROM planners WHERE public_id = $1', [publicId])
-    if (rows.length === 0) return reply.code(404).send({ error: 'Tablet not found' })
-    const tabletId = rows[0].id
-
-    await client.query(
-      `INSERT INTO tablet_sessions (tablet_id, user_id, last_active) 
-       VALUES ($1, $2, NOW()) 
-       ON CONFLICT (tablet_id, user_id) DO UPDATE SET last_active = NOW()`,
-      [tabletId, userId]
+fastify.post('/planners/:id/heartbeat', withUser(async (req: any, reply: any, userId: number) => {
+  const { rows } = await fastify.pg.query('SELECT id FROM planners WHERE public_id = $1', [req.params.id])
+  if (rows.length > 0) {
+    await fastify.pg.query(`
+      INSERT INTO tablet_sessions (tablet_id, user_id, last_active) 
+      VALUES ($1, $2, NOW()) 
+      ON CONFLICT (tablet_id, user_id) DO UPDATE SET last_active = NOW()`, 
+      [rows[0].id, userId]
     )
-    return { success: true }
-  } finally {
-    client.release()
   }
+  return { success: true }
 }))
 
-// GET /api/planners/:id/users
-fastify.get<{ Params: { id: string } }>('/api/planners/:id/users', withUser(async (req, reply, userId) => {
-  const publicId = req.params.id
-  const client = await fastify.pg.connect()
-  try {
-    const { rows: tabletRows } = await client.query('SELECT id, user_id FROM planners WHERE public_id = $1', [publicId])
-    if (tabletRows.length === 0) return reply.code(404).send({ error: 'Tablet not found' })
-    const tabletId = tabletRows[0].id
-    const ownerId = tabletRows[0].user_id
-
-    // Get active users (last 2 minutes) + permissions
-    const { rows } = await client.query(
-      `SELECT u.id, u.email, u.name, 
-              (u.id = $2) as is_owner,
-              COALESCE(p.can_edit, FALSE) as can_edit,
-              (ts.last_active > NOW() - INTERVAL '2 minutes') as is_online
-       FROM tablet_sessions ts
-       JOIN users u ON ts.user_id = u.id
-       LEFT JOIN tablet_permissions p ON p.tablet_id = ts.tablet_id AND p.user_id = u.id
-       WHERE ts.tablet_id = $1 AND ts.last_active > NOW() - INTERVAL '1 hour'
-       ORDER BY is_online DESC, u.name ASC`,
-      [tabletId, ownerId]
-    )
-    
-    return rows.map((r: any) => ({
-      id: r.id.toString(),
-      name: r.name || (r.email ? r.email.split('@')[0] : 'Guest'),
-      email: r.email || '',
-      avatarUrl: undefined,
-      isOnline: r.is_online,
-      canEdit: r.is_owner || r.can_edit,
-      isOwner: r.is_owner
-    }))
-  } finally {
-    client.release()
-  }
+fastify.get('/planners/:id/users', withUser(async (req: any, reply: any, userId: number) => {
+  const { rows: tRows } = await fastify.pg.query('SELECT id, user_id FROM planners WHERE public_id = $1', [req.params.id])
+  if (tRows.length === 0) return []
+  const { rows } = await fastify.pg.query(`
+    SELECT u.id, u.name, u.email, (u.id = $2) as is_owner, 
+           COALESCE(p.can_edit, FALSE) as can_edit, 
+           (ts.last_active > NOW() - INTERVAL '2 minutes') as is_online
+    FROM tablet_sessions ts 
+    JOIN users u ON ts.user_id = u.id 
+    LEFT JOIN tablet_permissions p ON p.tablet_id = ts.tablet_id AND p.user_id = u.id
+    WHERE ts.tablet_id = $1`, [tRows[0].id, tRows[0].user_id])
+  return rows.map((r: any) => ({ 
+    id: r.id.toString(), 
+    name: r.name || (r.email ? r.email.split('@')[0] : 'Guest'), 
+    isOnline: r.is_online, 
+    canEdit: r.is_owner || r.can_edit, 
+    isOwner: r.is_owner 
+  }))
 }))
 
-// POST /api/planners/:id/permissions
-fastify.post<{ Params: { id: string }, Body: { userId: string, canEdit: boolean } }>('/api/planners/:id/permissions', withUser(async (req, reply, userId) => {
-  const publicId = req.params.id
-  const targetUserId = parseInt(req.body.userId)
-  const { canEdit } = req.body
-
-  const client = await fastify.pg.connect()
-  try {
-    const { rows } = await client.query('SELECT id, user_id FROM planners WHERE public_id = $1', [publicId])
-    if (rows.length === 0) return reply.code(404).send({ error: 'Tablet not found' })
-    const tabletId = rows[0].id
-    const ownerId = rows[0].user_id
-
-    if (ownerId !== userId) {
-      return reply.code(403).send({ error: 'Only owner can manage permissions' })
-    }
-
-    await client.query(
-      `INSERT INTO tablet_permissions (tablet_id, user_id, can_edit) 
-       VALUES ($1, $2, $3) 
-       ON CONFLICT (tablet_id, user_id) DO UPDATE SET can_edit = $3`,
-      [tabletId, targetUserId, canEdit]
-    )
-    return { success: true }
-  } finally {
-    client.release()
-  }
+fastify.post('/planners/:id/permissions', withUser(async (req: any, reply: any, userId: number) => {
+  const { rows: tRows } = await fastify.pg.query('SELECT id, user_id FROM planners WHERE public_id = $1', [req.params.id])
+  if (tRows.length === 0 || tRows[0].user_id !== userId) return reply.code(403).send({ error: 'Forbidden' })
+  await fastify.pg.query(`
+    INSERT INTO tablet_permissions (tablet_id, user_id, can_edit) 
+    VALUES ($1, $2, $3) 
+    ON CONFLICT (tablet_id, user_id) DO UPDATE SET can_edit = $3`, 
+    [tRows[0].id, req.body.userId, req.body.canEdit]
+  )
+  return { success: true }
 }))
 
-const start = async () => {
-  try {
-    await fastify.listen({ port: 3000, host: '0.0.0.0' })
-  } catch (err) {
-    fastify.log.error(err)
-    process.exit(1)
-  }
-}
-
-start()
+fastify.listen({ port: 3000, host: '0.0.0.0' })
