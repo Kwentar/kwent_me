@@ -6,7 +6,7 @@ import { v4 as uuidv4 } from 'uuid'
 
 const fastify = Fastify({
   logger: true,
-  bodyLimit: 10485760 // 10MB
+  bodyLimit: 52428800 // 50MB
 })
 
 // Plugins
@@ -191,6 +191,7 @@ fastify.get<{ Params: { id: string } }>('/api/planners/:id', withUser(async (req
 fastify.patch<{ Params: { id: string }, Body: any }>('/api/planners/:id', withUser(async (req, reply, userId) => {
   const publicId = req.params.id
   const { title, map_url, state } = req.body
+  req.log.info({ publicId, userId }, 'PATCH request received')
   
   const client = await fastify.pg.connect()
   try {
