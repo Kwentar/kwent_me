@@ -60,5 +60,30 @@ services:
     ports:
       - "3000:3000"
 
+  # --- WoWs Planner ---
+  wows-planner-db:
+    image: postgres:17-alpine
+    container_name: wows-planner-db
+    restart: always
+    environment:
+      POSTGRES_USER: user
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: wows_planner
+    volumes:
+      - wows_planner_postgres_data:/var/lib/postgresql/data
+
+  wows-planner-backend:
+    image: ghcr.io/IMAGE_NAME_PLACEHOLDER/wows-planner-backend:latest
+    container_name: wows-planner-backend
+    restart: always
+    environment:
+      DATABASE_URL: postgres://user:${POSTGRES_PASSWORD}@wows-planner-db:5432/wows_planner
+      COOKIE_SECRET: ${OAUTH2_PROXY_COOKIE_SECRET}
+    depends_on:
+      - wows-planner-db
+    ports:
+      - "3001:3000"
+
 volumes:
   notes_postgres_data:
+  wows_planner_postgres_data:

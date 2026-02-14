@@ -2,12 +2,14 @@ services:
   # 1. Reverse Proxy
   nginx:
     image: nginx:alpine
-    ports:
-      - "8080:80" # Будем открывать localhost:8080
     volumes:
       - ./nginx.local.conf:/etc/nginx/conf.d/default.conf
-      - ./html:/var/www/html # Главная страница
-      - ./notes/frontend/dist:/var/www/notes # Собранный фронтенд заметок
+      - ./html:/var/www/html
+      - ./notes/frontend/dist:/var/www/notes
+      - ./imedit/frontend/dist:/var/www/imedit
+      - ./wows_planner/frontend/dist:/var/www/wows_planner
+    ports:
+      - "8080:80"
     depends_on:
       - me
       - notes-backend
@@ -32,10 +34,33 @@ services:
   # 4. Notes Backend
   notes-backend:
     build: ./notes/backend
+    container_name: notes-backend
     environment:
       DATABASE_URL: postgres://user:password@notes-db:5432/kwent_notes
     depends_on:
       - notes-db
 
+  # --- WoWs Planner ---
+  wows-planner-db:
+    image: postgres:17-alpine
+    container_name: wows-planner-db
+    environment:
+      POSTGRES_USER: user
+      POSTGRES_PASSWORD: password
+      POSTGRES_DB: wows_planner
+    volumes:
+      - wows_planner_local_data:/var/lib/postgresql/data
+      - ./wows_planner/backend/init.sql:/docker-entrypoint-initdb.d/init.sql
+
+  wows-planner-backend:
+    build: ./wows_planner/backend
+    container_name: wows-planner-backend
+    environment:
+      DATABASE_URL: postgres://user:password@wows-planner-db:5432/wows_planner
+      COOKIE_SECRET: secret
+    depends_on:
+      - wows-planner-db
+
 volumes:
   notes_local_data:
+  wows_planner_local_data:

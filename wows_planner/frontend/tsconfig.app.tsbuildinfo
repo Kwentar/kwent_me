@@ -1,0 +1,1 @@
+{"root":["./src/app.tsx","./src/api.ts","./src/constants.tsx","./src/main.tsx","./src/types.ts","./src/vite-env.d.ts","./src/components/dashboard.tsx","./src/components/panelleft.tsx","./src/components/panelright.tsx","./src/components/shipsymbol.tsx","./src/components/tabletview.tsx","./src/components/tacticalmap.tsx"],"version":"5.9.3"}

@@ -33,6 +33,12 @@ jobs:
       - name: Build Imedit
         run: cd imedit/frontend && npm run build
 
+      # Build WoWs Planner
+      - name: Install WoWs Planner dependencies
+        run: cd wows_planner/frontend && npm install
+      - name: Build WoWs Planner
+        run: cd wows_planner/frontend && npm run build
+
       - name: Upload Notes artifact
         uses: actions/upload-artifact@v4
         with:
@@ -44,6 +50,12 @@ jobs:
         with:
           name: imedit-build
           path: imedit/frontend/dist/
+
+      - name: Upload WoWs Planner artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: wows-planner-build
+          path: wows_planner/frontend/dist/
 
   build-and-push-images:
     runs-on: ubuntu-latest
@@ -79,6 +91,13 @@ jobs:
           push: true
           tags: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}/notes-backend:latest
 
+      - name: Build and push WoWs Planner Backend
+        uses: docker/build-push-action@v4
+        with:
+          context: ./wows_planner/backend
+          push: true
+          tags: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}/wows-planner-backend:latest
+
   deploy:
     runs-on: ubuntu-latest
     needs: [build-frontend, build-and-push-images]
@@ -102,7 +121,13 @@ jobs:
           name: imedit-build
           path: imedit-dist
 
-      - name: Update docker-compose image names
+      - name: Download WoWs Planner artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: wows-planner-build
+          path: wows-planner-dist
+
+      - name:QlUpdate docker-compose image names
         run: |
           sed -i "s|IMAGE_NAME_PLACEHOLDER|${{ env.IMAGE_NAME }}|g" docker-compose.prod.yml
 
@@ -112,7 +137,7 @@ jobs:
           host: ${{ secrets.HOST }}
           username: ${{ secrets.USERNAME }}
           key: ${{ secrets.SSH_KEY }}
-          source: "docker-compose.prod.yml,notes-dist/**,imedit-dist/**,nginx.conf,html/**,emails.txt"
+          source: "docker-compose.prod.yml,notes-dist/**,imedit-dist/**,wows-planner-dist/**,nginx.conf,html/**,emails.txt"
           target: "/root/kwent_me"
 
       - name: Deploy via SSH
@@ -137,6 +162,9 @@ jobs:
             
             mkdir -p /var/www/kwent_me/imedit
             cp -r imedit-dist/* /var/www/kwent_me/imedit/
+
+            mkdir -p /var/www/kwent_me/wows_planner
+            cp -r wows-planner-dist/* /var/www/kwent_me/wows_planner/
             
             mkdir -p /var/www/kwent_me/html
             cp -r html/* /var/www/kwent_me/html/

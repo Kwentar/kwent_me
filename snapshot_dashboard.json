@@ -1,0 +1,33 @@
+uid=3_0 RootWebArea "WoWs Planner - kwent.me" url="http://localhost:8080/wows_planner/"
+  uid=3_1 ignored
+    uid=3_2 ignored
+      uid=3_3 generic
+        uid=3_4 ignored
+          uid=3_5 ignored
+            uid=3_6 banner
+              uid=3_7 ignored
+                uid=3_8 heading "Tactical Command Center" level="1"
+                  uid=3_9 ignored
+                  uid=3_10 StaticText "Tactical Command Center"
+                    uid=3_11 InlineTextBox
+                uid=3_12 paragraph
+                  uid=3_13 StaticText "Guest Mode (Anonymous)"
+                    uid=3_11 InlineTextBox
+              uid=3_14 ignored
+                uid=3_15 button "Login with Google"
+                  uid=3_16 ignored
+                  uid=3_17 StaticText "Login with Google"
+                    uid=3_11 InlineTextBox
+            uid=3_18 ignored
+              uid=3_19 ignored
+                uid=3_20 heading "Active Operations" level="2"
+                  uid=3_21 StaticText "Active Operations"
+                    uid=3_11 InlineTextBox
+                uid=3_22 button "Create Operation"
+                  uid=3_23 StaticText "Create Operation"
+                    uid=3_11 InlineTextBox
+              uid=3_24 ignored
+                uid=3_25 button "New Operation"
+                  uid=3_26 ignored
+                    uid=3_27 StaticText "New Operation"
+                      uid=3_11 InlineTextBox
