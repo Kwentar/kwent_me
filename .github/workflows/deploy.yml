@@ -137,7 +137,7 @@ jobs:
           host: ${{ secrets.HOST }}
           username: ${{ secrets.USERNAME }}
           key: ${{ secrets.SSH_KEY }}
-          source: "docker-compose.prod.yml,notes-dist/**,imedit-dist/**,wows-planner-dist/**,nginx.conf,html/**,emails.txt,wows_planner/backend/init.sql"
+          source: "docker-compose.prod.yml,notes-dist/**,imedit-dist/**,wows-planner-dist/**,nginx.conf,html/**,emails.txt,wows_planner/backend/init.sql,wows_planner/backend/migration.sql"
           target: "/root/kwent_me"
 
       - name: Deploy via SSH
@@ -169,8 +169,9 @@ jobs:
             mkdir -p /var/www/kwent_me/html
             cp -r html/* /var/www/kwent_me/html/
 
-            # Ensure init.sql directory exists (scp creates it if we copy file with path, but to be safe)
-            # scp copies "wows_planner/backend/init.sql" to "/root/kwent_me/wows_planner/backend/init.sql" preserving structure
+            # Copy init.sql and migration.sql to server root
+            cp wows_planner/backend/init.sql /root/kwent_me/wows_planner/backend/init.sql
+            cp wows_planner/backend/migration.sql /root/kwent_me/wows_planner/backend/migration.sql
             
             # Update docker
             mv docker-compose.prod.yml docker-compose.yml
@@ -179,7 +180,13 @@ jobs:
             
             # Force DB migration (wait for DB start)
             sleep 10
+            # 1. Run init.sql (creates missing tables)
             docker compose exec -T wows-planner-db psql -U user -d wows_planner -f /docker-entrypoint-initdb.d/init.sql
+            # 2. Run migration.sql (updates existing tables)
+            # We copy it into container tmp first or just use pipe? Pipe is standard but TTY might be issue.
+            # Let's cp it to container since we didn't mount it in docker-compose.prod.yml
+            docker cp /root/kwent_me/wows_planner/backend/migration.sql wows-planner-db:/tmp/migration.sql
+            docker compose exec -T wows-planner-db psql -U user -d wows_planner -f /tmp/migration.sql
             
             # Update Nginx
             cp nginx.conf /etc/nginx/sites-available/kwent_me
