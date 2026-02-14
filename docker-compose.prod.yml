@@ -71,6 +71,7 @@ services:
       POSTGRES_DB: wows_planner
     volumes:
       - wows_planner_postgres_data:/var/lib/postgresql/data
+      - ./wows_planner/backend/init.sql:/docker-entrypoint-initdb.d/init.sql
 
   wows-planner-backend:
     image: ghcr.io/IMAGE_NAME_PLACEHOLDER/wows-planner-backend:latest

@@ -137,7 +137,7 @@ jobs:
           host: ${{ secrets.HOST }}
           username: ${{ secrets.USERNAME }}
           key: ${{ secrets.SSH_KEY }}
-          source: "docker-compose.prod.yml,notes-dist/**,imedit-dist/**,wows-planner-dist/**,nginx.conf,html/**,emails.txt"
+          source: "docker-compose.prod.yml,notes-dist/**,imedit-dist/**,wows-planner-dist/**,nginx.conf,html/**,emails.txt,wows_planner/backend/init.sql"
           target: "/root/kwent_me"
 
       - name: Deploy via SSH
@@ -168,11 +168,18 @@ jobs:
             
             mkdir -p /var/www/kwent_me/html
             cp -r html/* /var/www/kwent_me/html/
+
+            # Ensure init.sql directory exists (scp creates it if we copy file with path, but to be safe)
+            # scp copies "wows_planner/backend/init.sql" to "/root/kwent_me/wows_planner/backend/init.sql" preserving structure
             
             # Update docker
             mv docker-compose.prod.yml docker-compose.yml
             docker compose pull
             docker compose up -d --remove-orphans
+            
+            # Force DB migration (wait for DB start)
+            sleep 10
+            docker compose exec -T wows-planner-db psql -U user -d wows_planner -f /docker-entrypoint-initdb.d/init.sql
             
             # Update Nginx
             cp nginx.conf /etc/nginx/sites-available/kwent_me
