@@ -170,7 +170,12 @@ jobs:
             mkdir -p /var/www/kwent_me/html
             cp -r html/* /var/www/kwent_me/html/
 
-            # Copy init.sql and migration.sql to server root
+            # Update Nginx config immediately
+            cp nginx.conf /etc/nginx/sites-available/kwent_me
+            nginx -t && systemctl reload nginx
+
+            # Ensure init.sql directory exists
+            cp wows_planner/backend/init.sql /root/kwent_me/wows_planner/backend/init.sql
             cp wows_planner/backend/init.sql /root/kwent_me/wows_planner/backend/init.sql
             cp wows_planner/backend/migration.sql /root/kwent_me/wows_planner/backend/migration.sql
             
@@ -188,9 +193,5 @@ jobs:
             # Let's cp it to container since we didn't mount it in docker-compose.prod.yml
             docker cp /root/kwent_me/wows_planner/backend/migration.sql wows-planner-db:/tmp/migration.sql
             docker compose exec -T wows-planner-db psql -U user -d wows_planner -f /tmp/migration.sql
-            
-            # Update Nginx
-            cp nginx.conf /etc/nginx/sites-available/kwent_me
-            nginx -t && systemctl reload nginx
             
             docker image prune -f
