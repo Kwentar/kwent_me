@@ -10,6 +10,9 @@ function App() {
   const [tablets, setTablets] = useState<Tablet[]>([]);
   const [activeTabletId, setActiveTabletId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+  
+  // State for shared tablet (loaded individually)
+  const [sharedTablet, setSharedTablet] = useState<Tablet | null>(null);
 
   // --- Auth & Data Load ---
   useEffect(() => {
@@ -30,22 +33,42 @@ function App() {
     init();
   }, []);
 
+  // --- Shared Tablet Loader ---
+  useEffect(() => {
+      const loadShared = async () => {
+          if (!activeTabletId) {
+              setSharedTablet(null);
+              return;
+          }
+
+          // Check if we already have it in "my tablets"
+          if (tablets.find(t => t.id === activeTabletId)) {
+              setSharedTablet(null); // It's in main list, no need for shared state
+              return;
+          }
+
+          // Try to load
+          try {
+              const t = await api.getTablet(activeTabletId);
+              setSharedTablet(t);
+          } catch (e) {
+              console.error("Failed to load shared tablet", e);
+              // If failed, redirect to dashboard
+              window.location.hash = '';
+          }
+      };
+
+      if (!loading) {
+          loadShared();
+      }
+  }, [activeTabletId, tablets, loading]);
+
   // --- Routing ---
   useEffect(() => {
     const handleHashChange = () => {
       const hash = window.location.hash;
       const id = hash.replace('#/tablet/', '');
-      if (id) {
-        // If we have tablets loaded, verify ID
-        // If it's a deep link, we might not have it in "my tablets" yet if it's public?
-        // For MVP we assume we only see our tablets in dashboard list.
-        // But for direct link, we should try to fetch it individually (backend GET /planners/:id supports checking permissions)
-        // For now, let's just set ID and let TabletView handle loading/error ideally, 
-        // OR simply require it to be in the list for now.
-        setActiveTabletId(id);
-      } else {
-        setActiveTabletId(null);
-      }
+      setActiveTabletId(id || null);
     };
     window.addEventListener('hashchange', handleHashChange);
     handleHashChange();
@@ -88,7 +111,12 @@ function App() {
 
   const handleUpdateTablet = async (updatedTablet: Tablet) => {
     // Optimistic update
-    setTablets(prev => prev.map(t => t.id === updatedTablet.id ? updatedTablet : t));
+    if (tablets.find(t => t.id === updatedTablet.id)) {
+        setTablets(prev => prev.map(t => t.id === updatedTablet.id ? updatedTablet : t));
+    } else if (sharedTablet?.id === updatedTablet.id) {
+        setSharedTablet(updatedTablet);
+    }
+
     // Background save
     try {
         await api.updateTablet(updatedTablet.id, { 
@@ -112,17 +140,10 @@ function App() {
       return <div className="h-screen w-screen bg-slate-950 flex items-center justify-center text-slate-500">Loading Command Center...</div>;
   }
 
-  const activeTablet = tablets.find(t => t.id === activeTabletId);
+  // Determine active tablet (from My list OR Shared loaded)
+  const activeTablet = tablets.find(t => t.id === activeTabletId) || (sharedTablet?.id === activeTabletId ? sharedTablet : null);
 
-  // If ID exists but not in list, maybe it's a new shared tablet?
-  // For MVP, if not found, redirect to dashboard.
-  if (activeTabletId && !activeTablet) {
-      // In real app: fetch single tablet by ID
-      navigateToDashboard();
-      return null; 
-  }
-
-  if (activeTablet && activeTabletId) {
+  if (activeTabletId && activeTablet) {
     return (
       <TabletView 
         user={user}
@@ -131,6 +152,9 @@ function App() {
         onBack={navigateToDashboard}
       />
     );
+  } else if (activeTabletId && !activeTablet) {
+      // Loading shared... or failed (handled in useEffect)
+      return <div className="h-screen w-screen bg-slate-950 flex items-center justify-center text-slate-500">Connecting to Operation...</div>;
   }
 
   return (
