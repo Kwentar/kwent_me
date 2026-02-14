@@ -224,7 +224,14 @@ fastify.patch<{ Params: { id: string }, Body: any }>('/api/planners/:id', withUs
     }
     if (state !== undefined) {
       updates.push(`state = $${paramIndex++}`)
-      values.push(state)
+      values.push(JSON.stringify(state))
+    }
+    
+    // Support for merging pings specifically to avoid overwriting ships
+    const { pings } = req.body
+    if (pings !== undefined) {
+        updates.push(`state = state || jsonb_build_object('pings', $${paramIndex++}::jsonb)`)
+        values.push(JSON.stringify(pings))
     }
 
     if (updates.length === 0) return reply.code(400).send({ error: 'No fields to update' })

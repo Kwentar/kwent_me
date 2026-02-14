@@ -9,6 +9,8 @@ interface TacticalMapProps {
   shipConfig: { color: string; label: string };
   pings: Ping[];
   onPing: (x: number, y: number) => void;
+  onInteractionStart: () => void;
+  onInteractionEnd: () => void;
 }
 
 export const TacticalMap: React.FC<TacticalMapProps> = ({
@@ -17,7 +19,9 @@ export const TacticalMap: React.FC<TacticalMapProps> = ({
   onUpdateLayer,
   shipConfig,
   pings,
-  onPing
+  onPing,
+  onInteractionStart,
+  onInteractionEnd
 }) => {
   const containerRef = useRef<HTMLDivElement>(null);
   const [dragItem, setDragItem] = useState<{ id: string; offsetX: number; offsetY: number } | null>(null);
@@ -57,6 +61,7 @@ export const TacticalMap: React.FC<TacticalMapProps> = ({
         ToolType.SHIP_SUB
       ].includes(selectedTool)
     ) {
+      onInteractionStart(); // Started placing
       const shipType = 
         selectedTool === ToolType.SHIP_BB ? 'BB' :
         selectedTool === ToolType.SHIP_CL ? 'CL' :
@@ -75,6 +80,7 @@ export const TacticalMap: React.FC<TacticalMapProps> = ({
       };
       
       onUpdateLayer(activeLayer.id, [...activeLayer.items, newItem]);
+      onInteractionEnd(); // Done placing (single click action)
     }
   };
 
@@ -85,14 +91,17 @@ export const TacticalMap: React.FC<TacticalMapProps> = ({
 
     // Eraser
     if (selectedTool === ToolType.ERASER) {
+      onInteractionStart();
       const newItems = activeLayer.items.filter(i => i.id !== item.id);
       onUpdateLayer(activeLayer.id, newItems);
+      onInteractionEnd();
       return;
     }
 
     // Rotation (Smooth)
     if (selectedTool === ToolType.ROTATE) {
       if (!containerRef.current) return;
+      onInteractionStart();
       // Capture pointer for smooth dragging outside element bounds
       (e.target as Element).setPointerCapture(e.pointerId);
       
@@ -118,6 +127,7 @@ export const TacticalMap: React.FC<TacticalMapProps> = ({
     ].includes(selectedTool);
 
     if (selectedTool === ToolType.POINTER || isShipTool) {
+       onInteractionStart();
        (e.target as Element).setPointerCapture(e.pointerId);
        setDragItem({ id: item.id, offsetX: 0, offsetY: 0 }); 
     }
@@ -166,6 +176,9 @@ export const TacticalMap: React.FC<TacticalMapProps> = ({
   };
 
   const handlePointerUp = (e: React.PointerEvent) => {
+    if (dragItem || rotateItem) {
+        onInteractionEnd();
+    }
     setDragItem(null);
     setRotateItem(null);
     if (e.target instanceof Element) {

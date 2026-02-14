@@ -1,4 +1,4 @@
-import { Tablet, User } from './types';
+import { Tablet, User, Ping } from './types';
 
 const API_BASE = '/wows_planner/api';
 
@@ -55,6 +55,16 @@ export const api = {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ name })
     });
+  },
+
+  async updatePings(tabletId: string, pings: Ping[]): Promise<void> {
+      // We only update the pings field in state, but backend expects whole state.
+      // So we'll let TabletView handle merging.
+      await fetch(`${API_BASE}/planners/${tabletId}`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ state_merge: { pings } }) // Concept: partial update
+      });
   },
 
   async getTablet(id: string): Promise<Tablet & { canEdit: boolean }> {

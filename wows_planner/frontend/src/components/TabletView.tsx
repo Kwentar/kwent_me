@@ -33,6 +33,7 @@ export const TabletView: React.FC<TabletViewProps> = ({ user, tablet, onUpdateTa
   const [pings, setPings] = useState<Ping[]>([]);
   
   const [isOnline] = useState(true);
+  const [isInteracting, setIsInteracting] = useState(false);
 
   // --- Session & Permissions Polling ---
   useEffect(() => {
@@ -52,15 +53,33 @@ export const TabletView: React.FC<TabletViewProps> = ({ user, tablet, onUpdateTa
                       setCanEdit(me.canEdit);
                   }
               }
+
+              // 4. SYNC DATA: Fetch tablet data to get changes from others
+              if (!isInteracting) {
+                  const updated = await api.getTablet(tablet.id);
+                  setLayers(updated.layers);
+                  
+                  // SYNC PINGS:
+                  const remotePings = (updated as any).state?.pings || [];
+                  const now = Date.now();
+                  // Only keep pings from last 10 seconds
+                  const freshPings = remotePings.filter((p: any) => now - p.createdAt < 10000);
+                  setPings(prev => {
+                      // Merge local and remote, avoid duplicates
+                      const localIds = new Set(prev.map(p => p.id));
+                      const combined = [...prev, ...freshPings.filter((rp: any) => !localIds.has(rp.id))];
+                      return combined.filter(p => now - p.createdAt < 10000);
+                  });
+              }
           } catch (e) {
               console.error("Session poll error", e);
           }
       };
 
       poll(); 
-      const interval = setInterval(poll, 5000); 
+      const interval = setInterval(poll, 3000); 
       return () => clearInterval(interval);
-  }, [tablet.id, isOwner, user?.id]);
+  }, [tablet.id, isOwner, user?.id, isInteracting]);
 
   // --- Handlers ---
 
@@ -69,7 +88,7 @@ export const TabletView: React.FC<TabletViewProps> = ({ user, tablet, onUpdateTa
           try {
               await api.updateMe(name);
               // Optimistic update local session users list
-              setSessionUsers(prev => prev.map(u => u.id === user.id ? { ...u, name: name } : u));
+              setSessionUsers(prev => prev.map(u => u.id === user.id.toString() ? { ...u, name: name } : u));
           } catch (e) {
               console.error(e);
           }
@@ -141,7 +160,7 @@ export const TabletView: React.FC<TabletViewProps> = ({ user, tablet, onUpdateTa
     }
   };
 
-  const handlePing = (x: number, y: number) => {
+  const handlePing = async (x: number, y: number) => {
     const newPing: Ping = {
         id: crypto.randomUUID(),
         x,
@@ -149,10 +168,19 @@ export const TabletView: React.FC<TabletViewProps> = ({ user, tablet, onUpdateTa
         color: pingColor,
         createdAt: Date.now()
     };
+    // Add locally
     setPings(prev => [...prev, newPing]);
+    
+    // Save to DB for others to see
+    try {
+        await api.updateTablet(tablet.id, { pings: [newPing] } as any);
+    } catch (e) {
+        console.error("Failed to share ping", e);
+    }
+
     setTimeout(() => {
         setPings(prev => prev.filter(p => p.id !== newPing.id));
-    }, 1500);
+    }, 5000); // Keep longer since polling is slow
   };
 
   // --- Effects ---
@@ -242,6 +270,8 @@ export const TabletView: React.FC<TabletViewProps> = ({ user, tablet, onUpdateTa
                 shipConfig={shipConfig}
                 pings={pings}
                 onPing={handlePing}
+                onInteractionStart={() => setIsInteracting(true)}
+                onInteractionEnd={() => setIsInteracting(false)}
             />
             
             <div className="absolute bottom-4 left-4 pointer-events-none opacity-50">
