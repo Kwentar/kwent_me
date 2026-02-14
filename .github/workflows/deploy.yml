@@ -127,7 +127,7 @@ jobs:
           name: wows-planner-build
           path: wows-planner-dist
 
-      - name:QlUpdate docker-compose image names
+      - name: Update docker-compose image names
         run: |
           sed -i "s|IMAGE_NAME_PLACEHOLDER|${{ env.IMAGE_NAME }}|g" docker-compose.prod.yml
 
