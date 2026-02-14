@@ -176,7 +176,7 @@ fastify.post('/api/planners', withUser(async (req, reply, userId) => {
   try {
     const { title, map_url, state } = req.body as any
     const { rows } = await client.query(
-      'INSERT INTO planners (user_id, title, map_url, state) VALUES ($1, $2, $3, $4) RETURNING public_id as id, user_id, title, map_url, created_at, updated_at',
+      'INSERT INTO planners (user_id, title, map_url, state) VALUES ($1, $2, $3, $4) RETURNING public_id as id, user_id, title, map_url, state, created_at, updated_at',
       [userId, title || 'New Battle Plan', map_url, state || '{}']
     )
     return rows[0]

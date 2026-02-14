@@ -40,9 +40,10 @@ export const api = {
     });
     if (!res.ok) throw new Error('Failed to create tablet');
     const d = await res.json();
+    console.log('API Create Response:', d);
     return {
       id: d.id.toString(),
-      ownerId: d.user_id.toString(), // Use actual user_id
+      ownerId: d.user_id ? d.user_id.toString() : '0', // Fallback if missing
       name: d.title,
       layers: d.state.layers,
       lastModified: new Date(d.created_at).getTime()
