@@ -65,12 +65,23 @@ cd notes/frontend && npm run build && cd ../..
 ```
 *Доступно на http://localhost:8080*
 
-### 3. Продакшен
-Просто пуш в репозиторий:
+### 3. Тестирование
+Перед деплоем ОБЯЗАТЕЛЬНО запускать все тесты.
+
+**Запуск всех тестов одним махом:**
+```bash
+(cd notes/backend && npm test) && (cd notes/frontend && npm test) && (cd wows_planner/backend && npm test) && (cd wows_planner/frontend && npm test) && (cd imedit/frontend && npm test)
+```
+
+### 4. Продакшен
+1. Прогнать тесты (см. выше).
+2. Запушить изменения и создать тег:
 ```bash
 git add .
-git commit -m "Your changes"
+git commit -m "Description of changes"
+git tag vX.Y.Z
 git push origin master
+git push origin vX.Y.Z
 ```
 
 ---
