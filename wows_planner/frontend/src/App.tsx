@@ -109,25 +109,6 @@ function App() {
     }
   };
 
-  const handleUpdateTablet = async (updatedTablet: Tablet) => {
-    // Optimistic update
-    if (tablets.find(t => t.id === updatedTablet.id)) {
-        setTablets(prev => prev.map(t => t.id === updatedTablet.id ? updatedTablet : t));
-    } else if (sharedTablet?.id === updatedTablet.id) {
-        setSharedTablet(updatedTablet);
-    }
-
-    // Background save
-    try {
-        await api.updateTablet(updatedTablet.id, { 
-            layers: updatedTablet.layers,
-            name: updatedTablet.name
-        });
-    } catch (e) {
-        console.error("Failed to auto-save", e);
-    }
-  };
-
   const handleLogin = () => {
      window.location.href = '/oauth2/sign_in?rd=/wows_planner/';
   };
@@ -148,7 +129,6 @@ function App() {
       <TabletView 
         user={user}
         tablet={activeTablet}
-        onUpdateTablet={handleUpdateTablet}
         onBack={navigateToDashboard}
       />
     );

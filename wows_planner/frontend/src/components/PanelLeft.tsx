@@ -6,6 +6,7 @@ interface PanelLeftProps {
   layers: Layer[];
   activeLayerId: string | null;
   onSelectLayer: (id: string) => void;
+  onRenameLayer: (id: string, name: string) => void;
   onAddLayer: () => void;
   onDeleteLayer: (id: string) => void;
   onUpdateLayerMap: (id: string, fileOrUrl: string | File) => void;
@@ -24,6 +25,7 @@ export const PanelLeft: React.FC<PanelLeftProps> = ({
   layers,
   activeLayerId,
   onSelectLayer,
+  onRenameLayer,
   onAddLayer,
   onDeleteLayer,
   onUpdateLayerMap,
@@ -84,7 +86,21 @@ export const PanelLeft: React.FC<PanelLeftProps> = ({
             className={`p-3 rounded-lg border cursor-pointer transition-all ${activeLayerId === layer.id ? 'bg-slate-800 border-blue-500 shadow-md shadow-blue-900/20' : 'bg-slate-900/50 border-slate-800 hover:border-slate-700'}`}
           >
             <div className="flex items-center justify-between mb-2">
-              <span className="font-semibold text-sm text-slate-200">{layer.name}</span>
+              <div className="flex items-center gap-2 min-w-0">
+                <span className="font-semibold text-sm text-slate-200 truncate">{layer.name}</span>
+                {!readOnly && activeLayerId === layer.id && (
+                    <button 
+                        onClick={(e) => {
+                            e.stopPropagation();
+                            const n = prompt('Layer Name:', layer.name);
+                            if (n) onRenameLayer(layer.id, n);
+                        }}
+                        className="text-slate-500 hover:text-blue-400"
+                    >
+                        <Edit2 size={12} />
+                    </button>
+                )}
+              </div>
                <div className="flex gap-1">
                  <button 
                    onClick={(e) => { e.stopPropagation(); onToggleVisibility(layer.id); }}

@@ -9,11 +9,10 @@ import { api } from '../api';
 interface TabletViewProps {
   user: User | null; // Current logged in user
   tablet: Tablet;
-  onUpdateTablet: (updatedTablet: Tablet) => void;
   onBack: () => void;
 }
 
-export const TabletView: React.FC<TabletViewProps> = ({ user, tablet, onUpdateTablet, onBack }) => {
+export const TabletView: React.FC<TabletViewProps> = ({ user, tablet, onBack }) => {
   // --- Permissions Logic ---
   const isOwner = user?.id.toString() === tablet.ownerId.toString();
   const [sessionUsers, setSessionUsers] = useState<SessionUser[]>([]);
@@ -68,6 +67,9 @@ export const TabletView: React.FC<TabletViewProps> = ({ user, tablet, onUpdateTa
                     // Only apply remote state if we are not acting
                     if (!isInteracting && Date.now() - lastActionRef.current > 2000) {
                         setLayers(data.payload.layers);
+                        if (data.payload.activeLayerId) {
+                            setActiveLayerId(data.payload.activeLayerId);
+                        }
                     }
                 }
             } catch (e) {
@@ -123,6 +125,9 @@ export const TabletView: React.FC<TabletViewProps> = ({ user, tablet, onUpdateTa
               const isIdle = !isInteracting && (Date.now() - lastActionRef.current > 3000);
               if (isIdle) {
                   setLayers(updated.layers);
+                  if ((updated as any).state?.activeLayerId) {
+                      setActiveLayerId((updated as any).state.activeLayerId);
+                  }
               }
           } catch (e) {
               console.error("Session poll error", e);
@@ -169,32 +174,44 @@ export const TabletView: React.FC<TabletViewProps> = ({ user, tablet, onUpdateTa
       }
   };
 
-  const debouncedSync = (newLayers: Layer[]) => {
+  const debouncedSync = (newLayers: Layer[], newActiveId?: string) => {
       if (saveTimeoutRef.current) window.clearTimeout(saveTimeoutRef.current);
       
+      const currentActiveId = newActiveId || activeLayerId;
+
       // Real-time broadcast via WS (MOMENTARY)
       if (socketRef.current?.readyState === WebSocket.OPEN) {
           socketRef.current.send(JSON.stringify({
               type: 'state_update',
-              payload: { layers: newLayers }
+              payload: { 
+                  layers: newLayers,
+                  activeLayerId: currentActiveId
+              }
           }));
       }
 
+      // Persistence via HTTP (DEBOUNCED)
       saveTimeoutRef.current = window.setTimeout(() => {
-          onUpdateTablet({
-              ...tablet,
+          api.updateTablet(tablet.id, { 
               layers: newLayers,
-              lastModified: Date.now()
-          });
+              // We'll need a way to pass activeLayerId to API if we want it in DB
+              state: { layers: newLayers, activeLayerId: currentActiveId }
+          } as any);
           saveTimeoutRef.current = null;
-      }, 1000); // 1s for database save
+      }, 1000); 
   };
 
-  const updateTabletData = (newLayers: Layer[]) => {
+  const updateTabletData = (newLayers: Layer[], newActiveId?: string) => {
       if (!canEdit) return; 
       markAction();
       setLayers(newLayers);
-      debouncedSync(newLayers);
+      debouncedSync(newLayers, newActiveId);
+  };
+
+  const handleSelectLayer = (id: string) => {
+      if (!canEdit) return;
+      setActiveLayerId(id);
+      updateTabletData(layers, id);
   };
 
   const handleUpdateLayer = (layerId: string, items: TacticalItem[]) => {
@@ -292,6 +309,12 @@ export const TabletView: React.FC<TabletViewProps> = ({ user, tablet, onUpdateTa
 
   const activeLayer = layers.find(l => l.id === activeLayerId);
 
+  const handleRenameLayer = (id: string, newName: string) => {
+      if (!canEdit) return;
+      const newLayers = layers.map(l => l.id === id ? { ...l, name: newName } : l);
+      updateTabletData(newLayers);
+  };
+
   return (
     <div className="flex h-screen w-screen bg-black text-slate-200 font-sans selection:bg-blue-500/30">
       
@@ -299,7 +322,8 @@ export const TabletView: React.FC<TabletViewProps> = ({ user, tablet, onUpdateTa
       <PanelLeft 
         layers={layers}
         activeLayerId={activeLayerId}
-        onSelectLayer={setActiveLayerId}
+        onSelectLayer={handleSelectLayer}
+        onRenameLayer={handleRenameLayer}
         onAddLayer={handleAddLayer}
         onDeleteLayer={handleDeleteLayer}
         onUpdateLayerMap={handleUpdateLayerMap}

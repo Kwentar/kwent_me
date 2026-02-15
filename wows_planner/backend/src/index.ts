@@ -22,7 +22,10 @@ if (!fs.existsSync(UPLOAD_DIR)) {
 const rooms = new Map<string, Set<any>>();
 
 async function init() {
-  await fastify.register(cors, { origin: '*', credentials: true })
+  await fastify.register(cors, { 
+    origin: (origin, cb) => { cb(null, true) },
+    credentials: true 
+  })
   await fastify.register(cookie)
   await fastify.register(multipart)
   await fastify.register(websocket)
@@ -33,11 +36,20 @@ async function init() {
   // Auth Helpers
   const getUserId = async (req: any, reply: any): Promise<number> => {
     let email = req.headers['cf-access-authenticated-user-email']
+    
+    // Local dev fallback (handy for testing)
+    if (!email && (req.headers.host?.includes('localhost') || req.headers.host?.includes('127.0.0.1'))) {
+       // email = 'alekseev.yeskela@gmail.com' 
+    }
+
     let anonId = req.cookies['wows_anon_id']
     if (!email && !anonId) {
       anonId = uuidv4()
-      reply.setCookie('wows_anon_id', anonId, { path: '/', httpOnly: true, secure: false, maxAge: 31536000 })
+      reply.setCookie('wows_anon_id', anonId, { 
+        path: '/', httpOnly: true, secure: false, sameSite: 'lax', maxAge: 31536000 
+      })
     }
+
     const client = await fastify.pg.connect()
     try {
       let userId: number | null = null
@@ -72,21 +84,17 @@ async function init() {
     }
   }
 
-  // --- WebSocket Route (Explicit Route Definition) ---
+  // --- WebSocket Route ---
   fastify.route({
     method: 'GET',
     url: '/socket/:id',
-    handler: (req, reply) => {
-      reply.code(426).send({ error: 'Upgrade Required' })
-    },
+    handler: (req, reply) => { reply.code(426).send({ error: 'Upgrade Required' }) },
     wsHandler: (connection, req) => {
       const tabletId = (req.params as any).id;
       if (!tabletId) { connection.socket.close(); return; }
-
       if (!rooms.has(tabletId)) rooms.set(tabletId, new Set());
       const room = rooms.get(tabletId)!;
       room.add(connection);
-
       connection.socket.on('message', (message: any) => {
         try {
           const data = JSON.parse(message.toString());
@@ -95,11 +103,8 @@ async function init() {
               client.socket.send(JSON.stringify(data));
             }
           }
-        } catch (e) {
-          fastify.log.error(e, 'WS Msg Error');
-        }
+        } catch (e) { fastify.log.error(e, 'WS Msg Error'); }
       });
-
       connection.socket.on('close', () => {
         room.delete(connection);
         if (room.size === 0) rooms.delete(tabletId);
@@ -112,6 +117,7 @@ async function init() {
 
   fastify.get('/me', withUser(async (req: any, reply: any, userId: number) => {
     const { rows } = await fastify.pg.query('SELECT id, email, name FROM users WHERE id = $1', [userId])
+    if (rows.length === 0) return reply.code(404).send({ error: 'User not found' })
     const u = rows[0]
     return { id: u.id, email: u.email, isAnonymous: !u.email, name: u.name || 'Commander' }
   }))
@@ -138,9 +144,16 @@ async function init() {
   }))
 
   fastify.get('/planners/:id', withUser(async (req: any, reply: any, userId: number) => {
-    const { rows } = await fastify.pg.query('SELECT public_id as id, title, state, user_id FROM planners WHERE public_id = $1', [req.params.id])
+    const { rows } = await fastify.pg.query(
+      `SELECT p.public_id as id, p.title, p.state, p.user_id, 
+              (p.user_id = $2) as is_owner, 
+              COALESCE(perm.can_edit, FALSE) as has_edit_perm
+       FROM planners p 
+       LEFT JOIN tablet_permissions perm ON perm.tablet_id = p.id AND perm.user_id = $2
+       WHERE p.public_id = $1`, [req.params.id, userId])
     if (rows.length === 0) return reply.code(404).send({ error: 'Not found' })
-    return { ...rows[0], can_edit: rows[0].user_id === userId }
+    const planner = rows[0]
+    return { ...planner, can_edit: planner.is_owner || planner.has_edit_perm }
   }))
 
   fastify.patch('/planners/:id', withUser(async (req: any, reply: any, userId: number) => {
@@ -149,13 +162,17 @@ async function init() {
     if (pRows.length === 0) return reply.code(404).send({ error: 'Not found' })
     const pid = pRows[0].id
     const ownerId = pRows[0].user_id
+
     let canEdit = (ownerId === userId)
     if (!canEdit) {
-      const { rows } = await fastify.pg.query('SELECT can_edit FROM tablet_permissions WHERE tablet_id = $1 AND user_id = $2', [pid, userId])
-      if (rows.length > 0 && rows[0].can_edit) canEdit = true
+      const { rows: permRows } = await fastify.pg.query('SELECT can_edit FROM tablet_permissions WHERE tablet_id = $1 AND user_id = $2', [pid, userId])
+      if (permRows.length > 0 && permRows[0].can_edit) canEdit = true
     }
-    const isPingOnly = title === undefined && state === undefined && pings !== undefined
+
+    const isRestrictedUpdate = title !== undefined || state !== undefined
+    const isPingOnly = !isRestrictedUpdate && pings !== undefined
     if (!canEdit && !isPingOnly) return reply.code(403).send({ error: 'Forbidden' })
+
     if (title !== undefined) await fastify.pg.query('UPDATE planners SET title = $1, updated_at = NOW() WHERE id = $2', [title, pid])
     if (state !== undefined) await fastify.pg.query('UPDATE planners SET state = $1, updated_at = NOW() WHERE id = $2', [JSON.stringify(state), pid])
     if (pings !== undefined) await fastify.pg.query("UPDATE planners SET state = state || jsonb_build_object('pings', $1::jsonb), updated_at = NOW() WHERE id = $2", [JSON.stringify(pings), pid])
@@ -180,24 +197,13 @@ async function init() {
 
   fastify.post('/planners/:id/permissions', withUser(async (req: any, reply: any, userId: number) => {
     const { rows: tRows } = await fastify.pg.query('SELECT id, user_id FROM planners WHERE public_id = $1', [req.params.id])
-    if (tRows.length === 0) return reply.code(404).send({ error: 'Not found' })
-    if (tRows[0].user_id !== userId) return reply.code(403).send({ error: 'Forbidden' })
-    
-    const targetUserId = parseInt(req.body.userId)
-    const { canEdit } = req.body
-    
-    await fastify.pg.query(`
-      INSERT INTO tablet_permissions (tablet_id, user_id, can_edit) 
-      VALUES ($1, $2, $3) 
-      ON CONFLICT (tablet_id, user_id) DO UPDATE SET can_edit = $3`, 
-      [tRows[0].id, targetUserId, canEdit]
-    )
+    if (tRows.length === 0 || tRows[0].user_id !== userId) return reply.code(403).send({ error: 'Forbidden' })
+    await fastify.pg.query('INSERT INTO tablet_permissions (tablet_id, user_id, can_edit) VALUES ($1, $2, $3) ON CONFLICT (tablet_id, user_id) DO UPDATE SET can_edit = $3', [tRows[0].id, req.body.userId, req.body.canEdit])
     return { success: true }
   }))
 
   fastify.post('/upload', withUser(async (req: any, reply: any, userId: number) => {
-    const data = await req.file()
-    if (!data) return reply.code(400).send({ error: 'No file' })
+    const data = await req.file(); if (!data) return reply.code(400).send({ error: 'No file' })
     const buffer = await data.toBuffer()
     const filename = `${crypto.createHash('sha256').update(buffer).digest('hex')}${path.extname(data.filename)}`
     fs.writeFileSync(path.join(UPLOAD_DIR, filename), buffer)
@@ -208,7 +214,4 @@ async function init() {
   await fastify.listen({ port: 3000, host: '0.0.0.0' })
 }
 
-init().catch(err => {
-  fastify.log.error(err);
-  process.exit(1);
-});
+init().catch(err => { fastify.log.error(err); process.exit(1); });
