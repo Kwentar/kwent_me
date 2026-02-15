@@ -27,14 +27,14 @@ export const TacticalMap: React.FC<TacticalMapProps> = ({
   const [dragItem, setDragItem] = useState<{ id: string; offsetX: number; offsetY: number } | null>(null);
   const [rotateItem, setRotateItem] = useState<{ id: string; startAngle: number; initialRotation: number } | null>(null);
 
-  // Helper to get coordinates in 0-100 percentage relative to container
+  // Helper to get coordinates in percentage relative to map area
   const getCoords = (e: React.PointerEvent) => {
     if (!containerRef.current) return { x: 0, y: 0 };
     const rect = containerRef.current.getBoundingClientRect();
     
-    // Clamp values to inside the box
+    // Allow horizontal clamping to 0-100, but vertical to -15 to 115 for reserve
     const relativeX = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
-    const relativeY = Math.max(0, Math.min(1, (e.clientY - rect.top) / rect.height));
+    const relativeY = Math.max(-0.15, Math.min(1.15, (e.clientY - rect.top) / rect.height));
 
     return { x: relativeX * 100, y: relativeY * 100 };
   };
@@ -47,9 +47,12 @@ export const TacticalMap: React.FC<TacticalMapProps> = ({
     const coords = getCoords(e);
     
     if (selectedTool === ToolType.PING) {
+      // Pings only allowed on actual map
+      if (coords.y < 0 || coords.y > 100) return;
       onPing(coords.x, coords.y);
       return;
     }
+// ... (rest of function)
 
     // Placing Ships
     if (
@@ -201,82 +204,99 @@ export const TacticalMap: React.FC<TacticalMapProps> = ({
 
   return (
     <div className="relative flex-grow flex items-center justify-center bg-slate-900 p-4 overflow-hidden h-full">
-      {/* Aspect Ratio Container - Keeps it Square */}
-      <div 
-        ref={containerRef}
-        className="relative w-full max-w-[85vh] aspect-square bg-slate-800 shadow-2xl border border-slate-700 overflow-hidden cursor-crosshair group select-none"
-        style={backgroundStyle}
-        onPointerDown={handlePointerDown}
-        onPointerMove={handlePointerMove}
-        onPointerUp={handlePointerUp}
-        onPointerLeave={handlePointerUp}
-      >
-        {/* Grid Overlay */}
-        <div className="absolute inset-0 opacity-20 pointer-events-none" 
-             style={{ 
-               backgroundImage: 'linear-gradient(#fff 1px, transparent 1px), linear-gradient(90deg, #fff 1px, transparent 1px)',
-               backgroundSize: '10% 10%' 
-             }}>
+      {/* Outer wrapper to handle reserve vertical spacing */}
+      <div className="relative w-full max-w-[85vh] flex flex-col items-center">
+        
+        {/* TOP RESERVE */}
+        <div className="w-full h-[8vh] bg-slate-900/50 border border-slate-800 rounded-t-lg flex items-center justify-center text-[10px] uppercase tracking-widest text-slate-600 font-bold mb-1">
+            Top Reserve
         </div>
 
-        {/* Empty State */}
-        {!activeLayer && (
-            <div className="absolute inset-0 flex items-center justify-center text-slate-500 pointer-events-none">
-                <span className="bg-slate-900/80 px-4 py-2 rounded">Select or Create a Layer</span>
-            </div>
-        )}
+        {/* Aspect Ratio Container - Keeps it Square */}
+        <div 
+          ref={containerRef}
+          className="relative w-full aspect-square bg-slate-800 shadow-2xl border border-slate-700 cursor-crosshair group select-none overflow-visible"
+          onPointerDown={handlePointerDown}
+          onPointerMove={handlePointerMove}
+          onPointerUp={handlePointerUp}
+          onPointerLeave={handlePointerUp}
+        >
+          {/* BACKGROUND LAYER (0-100 only) */}
+          <div className="absolute inset-0 z-0 pointer-events-none" style={backgroundStyle}></div>
 
-        {/* Items */}
-        {activeLayer?.items.map(item => (
-          <div
-            key={item.id}
-            className={`absolute transform -translate-x-1/2 -translate-y-1/2 flex flex-col items-center select-none touch-none 
-              ${selectedTool === ToolType.POINTER || [ToolType.SHIP_BB, ToolType.SHIP_CL, ToolType.SHIP_DD, ToolType.SHIP_CV, ToolType.SHIP_SUB].includes(selectedTool) ? 'cursor-move hover:scale-110' : ''}
-              ${selectedTool === ToolType.ROTATE ? 'cursor-alias hover:opacity-80' : ''}
-              ${selectedTool === ToolType.ERASER ? 'cursor-not-allowed hover:opacity-50' : ''}
-            `}
-            style={{ 
-              left: `${item.x}%`, 
-              top: `${item.y}%`, 
-              zIndex: 10
-            }}
-            onPointerDown={(e) => handleItemPointerDown(e, item)}
-          >
-            <div style={{ transform: `rotate(${item.rotation}deg)` }}>
-              {item.type === 'ship' && item.shipClass && (
-                <ShipSymbol type={item.shipClass} color={item.color || '#fff'} size={32} />
+          {/* Grid Overlay */}
+          <div className="absolute inset-0 opacity-20 pointer-events-none z-0" 
+               style={{ 
+                 backgroundImage: 'linear-gradient(#fff 1px, transparent 1px), linear-gradient(90deg, #fff 1px, transparent 1px)',
+                 backgroundSize: '10% 10%' 
+               }}>
+          </div>
+
+          {/* Empty State */}
+          {!activeLayer && (
+              <div className="absolute inset-0 flex items-center justify-center text-slate-500 pointer-events-none z-10">
+                  <span className="bg-slate-900/80 px-4 py-2 rounded">Select or Create a Layer</span>
+              </div>
+          )}
+
+          {/* Items */}
+          {activeLayer?.items.map(item => (
+            <div
+              key={item.id}
+              className={`absolute transform -translate-x-1/2 -translate-y-1/2 flex flex-col items-center select-none touch-none 
+                ${selectedTool === ToolType.POINTER || [ToolType.SHIP_BB, ToolType.SHIP_CL, ToolType.SHIP_DD, ToolType.SHIP_CV, ToolType.SHIP_SUB].includes(selectedTool) ? 'cursor-move hover:scale-110' : ''}
+                ${selectedTool === ToolType.ROTATE ? 'cursor-alias hover:opacity-80' : ''}
+                ${selectedTool === ToolType.ERASER ? 'cursor-not-allowed hover:opacity-50' : ''}
+              `}
+              style={{ 
+                left: `${item.x}%`, 
+                top: `${item.y}%`, 
+                zIndex: 20
+              }}
+              onPointerDown={(e) => handleItemPointerDown(e, item)}
+            >
+              <div style={{ transform: `rotate(${item.rotation}deg)` }}>
+                {item.type === 'ship' && item.shipClass && (
+                  <ShipSymbol type={item.shipClass} color={item.color || '#fff'} size={32} />
+                )}
+              </div>
+              {item.label && (
+                <span 
+                  className="mt-1 text-[10px] font-bold px-1 py-0.5 rounded bg-black/60 text-white whitespace-nowrap pointer-events-none"
+                  style={{ textShadow: '0px 1px 2px black' }}
+                >
+                  {item.label}
+                </span>
               )}
             </div>
-            {item.label && (
-              <span 
-                className="mt-1 text-[10px] font-bold px-1 py-0.5 rounded bg-black/60 text-white whitespace-nowrap pointer-events-none"
-                style={{ textShadow: '0px 1px 2px black' }}
-              >
-                {item.label}
-              </span>
-            )}
-          </div>
-        ))}
+          ))}
 
-        {/* Pings - Fixed Positioning Wrapper */}
-        {pings.map(ping => (
-           <div
-             key={ping.id}
-             className="absolute pointer-events-none"
-             style={{
-                left: `${ping.x}%`, 
-                top: `${ping.y}%`, 
-                transform: 'translate(-50%, -50%)', // Static centering
-             }}
-           >
-              <div 
-                className="w-8 h-8 rounded-full border-4 animate-ping-once"
-                style={{
-                    borderColor: ping.color || 'white'
-                }}
-              />
-           </div>
-        ))}
+          {/* Pings - Fixed Positioning Wrapper */}
+          {pings.map(ping => (
+             <div
+               key={ping.id}
+               className="absolute pointer-events-none"
+               style={{
+                  left: `${ping.x}%`, 
+                  top: `${ping.y}%`, 
+                  transform: 'translate(-50%, -50%)', // Static centering
+                  zIndex: 30
+               }}
+             >
+                <div 
+                  className="w-8 h-8 rounded-full border-4 animate-ping-once"
+                  style={{
+                      borderColor: ping.color || 'white'
+                  }}
+                />
+             </div>
+          ))}
+        </div>
+
+        {/* BOTTOM RESERVE */}
+        <div className="w-full h-[8vh] bg-slate-900/50 border border-slate-800 rounded-b-lg flex items-center justify-center text-[10px] uppercase tracking-widest text-slate-600 font-bold mt-1">
+            Bottom Reserve
+        </div>
       </div>
     </div>
   );
