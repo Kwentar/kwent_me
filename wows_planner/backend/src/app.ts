@@ -105,6 +105,7 @@ export function buildApp(opts = {}, testPg: any = null) {
       if (!rooms.has(tabletId)) rooms.set(tabletId, new Set());
       const room = rooms.get(tabletId)!;
       room.add(connection);
+      
       connection.socket.on('message', (message: any) => {
         try {
           const data = JSON.parse(message.toString());
@@ -115,6 +116,7 @@ export function buildApp(opts = {}, testPg: any = null) {
           }
         } catch (e) { app.log.error(e, 'WS Msg Error'); }
       });
+      
       connection.socket.on('close', () => {
         room.delete(connection);
         if (room.size === 0) rooms.delete(tabletId);

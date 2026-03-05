@@ -1,7 +1,7 @@
 import { Tablet, User, Ping } from './types';
 
 const API_BASE = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1'
-  ? `http://${window.location.hostname}:3000` 
+  ? `http://localhost:3000` 
   : '/wows_planner/api';
 
 const f = (url: string, init?: RequestInit) => fetch(url, {

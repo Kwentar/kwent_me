@@ -54,8 +54,11 @@ export const TabletView: React.FC<TabletViewProps> = ({ user, tablet, onBack }) 
     const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
     const host = window.location.host;
     const isLocal = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
+    
+    // When using localhost on frontend, we must use localhost for socket to share cookies.
+    // If we use 127.0.0.1 for socket while on localhost, cookies will not be sent.
     const socketUrl = isLocal 
-        ? `${protocol}//${window.location.hostname}:3000/socket/${tablet.id}`
+        ? `${protocol}//localhost:3000/socket/${tablet.id}`
         : `${protocol}//${host}/wows_planner/api/socket/${tablet.id}`;
     
     const connect = () => {
