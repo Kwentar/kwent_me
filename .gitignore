@@ -35,3 +35,12 @@ yarn-error.log*
 
 # Project specific
 # gemini.md (uncomment if you want to hide it)
+
+# Shiptools heavy spec files
+shiptools/spec/*.html
+shiptools/spec/*.jpg
+
+# Temporary inspection scripts
+*.cjs
+*.cjs.txt
+*.js.txt
