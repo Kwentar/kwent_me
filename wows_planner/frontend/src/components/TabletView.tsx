@@ -61,8 +61,9 @@ export const TabletView: React.FC<TabletViewProps> = ({ user, tablet, onBack }) 
         ? `${protocol}//localhost:3000/socket/${tablet.id}`
         : `${protocol}//${host}/wows_planner/api/socket/${tablet.id}`;
     
+    let ws: WebSocket;
     const connect = () => {
-        const ws = new WebSocket(socketUrl);
+        ws = new WebSocket(socketUrl);
         socketRef.current = ws;
 
         ws.onmessage = (event) => {
@@ -79,7 +80,6 @@ export const TabletView: React.FC<TabletViewProps> = ({ user, tablet, onBack }) 
                     }, 1500);
                 }
                 if (data.type === 'state_update') {
-                    // Only apply remote state if we are not acting
                     if (!isInteracting && Date.now() - lastActionRef.current > 1000) {
                         setLayers(data.payload.layers);
                         if (data.payload.activeLayerId) {
@@ -100,7 +100,11 @@ export const TabletView: React.FC<TabletViewProps> = ({ user, tablet, onBack }) 
 
     connect();
     return () => {
-        if (socketRef.current) socketRef.current.close();
+        if (ws) {
+            // Prevent the onclose handler from trying to reconnect
+            ws.onclose = null;
+            ws.close();
+        }
     };
   }, [tablet.id]); // Removed isInteracting
 

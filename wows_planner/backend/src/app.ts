@@ -23,7 +23,8 @@ export function buildApp(opts = {}, testPg: any = null) {
   // Plugins
   app.register(cors, { 
     origin: true,
-    credentials: true 
+    credentials: true,
+    methods: ['GET', 'PUT', 'POST', 'PATCH', 'DELETE', 'OPTIONS']
   })
   app.register(cookie)
   app.register(multipart)
@@ -95,12 +96,8 @@ export function buildApp(opts = {}, testPg: any = null) {
   }
 
   // --- WebSocket Route ---
-  app.route({
-    method: 'GET',
-    url: '/socket/:id',
-    handler: (req, reply) => { reply.code(426).send({ error: 'Upgrade Required' }) },
-    wsHandler: (connection, req) => {
-      const tabletId = (req.params as any).id;
+  app.get('/socket/:id', { websocket: true }, (connection: any, req: any) => {
+      const tabletId = connection.params?.id;
       if (!tabletId) { connection.socket.close(); return; }
       if (!rooms.has(tabletId)) rooms.set(tabletId, new Set());
       const room = rooms.get(tabletId)!;
@@ -110,7 +107,7 @@ export function buildApp(opts = {}, testPg: any = null) {
         try {
           const data = JSON.parse(message.toString());
           for (const client of room) {
-            if (client !== connection && client.socket.readyState === 1) {
+            if (client !== connection && client.socket.readyState === 1) { // WebSocket.OPEN is 1
               client.socket.send(JSON.stringify(data));
             }
           }
@@ -121,7 +118,6 @@ export function buildApp(opts = {}, testPg: any = null) {
         room.delete(connection);
         if (room.size === 0) rooms.delete(tabletId);
       });
-    }
   });
 
   // --- HTTP Routes ---

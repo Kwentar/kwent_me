@@ -11,7 +11,7 @@ interface ShipSymbolProps {
 // Tactical Map Symbols based on World of Warships style (Tag shape for capital ships, Triangle for light ships)
 export const ShipSymbol: React.FC<ShipSymbolProps> = ({ type, color, size = 32, className = '' }) => {
   const style = { fill: color, stroke: '#000', strokeWidth: 2, strokeLinejoin: 'round' as const };
-  const lineStyle = { stroke: '#000', strokeWidth: 2, strokeCap: 'round' as const };
+  const lineStyle = { stroke: '#000', strokeWidth: 2, strokeLinecap: 'round' as const };
   
   let content = null;
 

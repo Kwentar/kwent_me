@@ -327,7 +327,7 @@ export const TacticalMap: React.FC<TacticalMapProps> = ({
           );
       }
 
-      if (item.type === 'arrow') return <svg className="absolute inset-0 w-full h-full pointer-events-none" viewBox="0 0 100 100" style={{ zIndex: 5, overflow: 'visible' }}>{renderArrow(item, isGhost)}</svg>;
+      if (item.type === 'arrow') return <svg key={item.id || 'ghost'} className="absolute inset-0 w-full h-full pointer-events-none" viewBox="0 0 100 100" style={{ zIndex: 5, overflow: 'visible' }}>{renderArrow(item, isGhost)}</svg>;
 
       if (item.type === 'path') {
           const pointsStr = item.points?.map(p => `${p.x},${p.y}`).join(' ');
