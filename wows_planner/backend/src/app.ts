@@ -10,7 +10,7 @@ import fs from 'fs'
 import path from 'path'
 import crypto from 'crypto'
 
-export function buildApp(opts = {}, testPg: any = null) {
+export async function buildApp(opts = {}, testPg: any = null) {
   const app = Fastify(opts)
 
   const UPLOAD_DIR = path.join(process.cwd(), 'uploads')
@@ -21,22 +21,23 @@ export function buildApp(opts = {}, testPg: any = null) {
   const rooms = new Map<string, Set<any>>();
 
   // Plugins
-  app.register(cors, { 
+  await app.register(cors, { 
     origin: true,
     credentials: true,
     methods: ['GET', 'PUT', 'POST', 'PATCH', 'DELETE', 'OPTIONS']
   })
-  app.register(cookie)
-  app.register(multipart)
-  app.register(websocket)
+  await app.register(cookie)
+  await app.register(multipart)
+  // Must be ready before websocket routes are declared.
+  await app.register(websocket)
   
-  app.register(fastifyStatic, {
+  await app.register(fastifyStatic, {
     root: UPLOAD_DIR,
     prefix: '/wows_planner/uploads/',
   })
   
   if (!testPg) {
-    app.register(postgres, {
+    await app.register(postgres, {
       connectionString: process.env.DATABASE_URL || 'postgres://user:password@wows-planner-db:5432/wows_planner'
     })
   } else {
@@ -96,28 +97,42 @@ export function buildApp(opts = {}, testPg: any = null) {
   }
 
   // --- WebSocket Route ---
-  app.get('/socket/:id', { websocket: true }, (socket: any, req: any) => {
-      const tabletId = req.params?.id;
-      if (!tabletId) { socket.close(); return; }
-      
-      if (!rooms.has(tabletId)) rooms.set(tabletId, new Set());
-      const room = rooms.get(tabletId)!;
-      room.add(socket);
-      
-      socket.on('message', (message: any) => {
-        try {
-          const data = JSON.parse(message.toString());
-          for (const client of room) {
-            if (client !== socket && client.readyState === 1) { // WebSocket.OPEN is 1
-              client.send(JSON.stringify(data));
-            }
+  app.register(async function (fastify) {
+      fastify.get('/socket/:id', { websocket: true }, (socket: any, req: any) => {
+          // If the route receives HTTP instead of WS, socket is actually the request and req is the reply
+          if (!socket.on || typeof socket.send !== 'function') {
+             if (req && typeof req.code === 'function') {
+                 return req.code(426).send({ error: 'Upgrade Required' });
+             }
+             return;
           }
-        } catch (e) { app.log.error(e, 'WS Msg Error'); }
-      });
-      
-      socket.on('close', () => {
-        room.delete(socket);
-        if (room.size === 0) rooms.delete(tabletId);
+
+          const tabletId = req.params?.id;
+          if (!tabletId) { socket.close(); return; }
+
+          if (!rooms.has(tabletId)) rooms.set(tabletId, new Set());
+          const room = rooms.get(tabletId)!;
+          room.add(socket);
+
+          socket.on('message', (message: any) => {
+            try {
+              const data = JSON.parse(message.toString());
+              for (const client of room) {
+                if (client !== socket && client.readyState === 1) { // WebSocket.OPEN is 1
+                  client.send(JSON.stringify(data));
+                }
+              }
+            } catch (e) { fastify.log.error(e, 'WS Msg Error'); }
+          });
+
+          socket.on('error', (err: any) => {
+            fastify.log.error({ err, tabletId }, 'WS Socket Error')
+          });
+
+          socket.on('close', () => {
+            room.delete(socket);
+            if (room.size === 0) rooms.delete(tabletId);
+          });
       });
   });
 

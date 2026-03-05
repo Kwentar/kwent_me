@@ -10,7 +10,7 @@ describe('Planner API', () => {
   }
 
   beforeAll(async () => {
-    app = buildApp({}, mockPg)
+    app = await buildApp({}, mockPg)
     await app.ready()
   })
 
