@@ -23,7 +23,7 @@ describe('TacticalMap - Reserve & Pings', () => {
   }
 
   it('should not allow pings in the reserve area (Y < 0)', () => {
-    const { getByText } = render(
+    render(
       <TacticalMap {...defaultProps} selectedTool={ToolType.PING} />
     )
     

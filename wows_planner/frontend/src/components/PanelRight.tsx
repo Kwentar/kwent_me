@@ -154,14 +154,14 @@ export const PanelRight: React.FC<PanelRightProps> = ({
                                 <div className="relative">
                                     <input 
                                         type="text"
-                                        maxLength={10}
+                                        maxLength={20}
                                         value={shipConfig.label}
                                         onChange={(e) => onUpdateShipConfig({ ...shipConfig, label: e.target.value })}
-                                        placeholder="Callsign (e.g. ALPHA)"
-                                        className="w-full bg-slate-900 border border-slate-700 rounded px-3 py-2 text-sm text-slate-200 focus:outline-none focus:border-blue-500 uppercase font-mono"
+                                        placeholder="Callsign (e.g. Alpha)"
+                                        className="w-full bg-slate-900 border border-slate-700 rounded px-3 py-2 text-sm text-slate-200 focus:outline-none focus:border-blue-500 font-mono"
                                     />
                                     <div className="absolute right-2 top-2 text-[10px] text-slate-600 font-mono">
-                                        {shipConfig.label.length}/10
+                                        {shipConfig.label.length}/20
                                     </div>
                                 </div>
                             </div>

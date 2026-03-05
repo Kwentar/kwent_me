@@ -83,11 +83,12 @@ export const api = {
   },
 
   async setPermission(tabletId: string, userId: string, canEdit: boolean): Promise<void> {
-      await fetch(`${API_BASE}/planners/${tabletId}/permissions`, {
+      const res = await fetch(`${API_BASE}/planners/${tabletId}/permissions`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ userId, canEdit })
       });
+      if (!res.ok) throw new Error('Failed to update permissions');
   },
 
   async uploadFile(file: File): Promise<string> {
@@ -108,16 +109,18 @@ export const api = {
     if (data.layers) payload.state = { layers: data.layers };
     if (data.pings) payload.pings = data.pings;
 
-    await fetch(`${API_BASE}/planners/${id}`, {
+    const res = await fetch(`${API_BASE}/planners/${id}`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(payload)
     });
+    if (!res.ok) throw new Error('Failed to update tablet');
   },
 
   async deleteTablet(id: string): Promise<void> {
-    await fetch(`${API_BASE}/planners/${id}`, {
+    const res = await fetch(`${API_BASE}/planners/${id}`, {
       method: 'DELETE'
     });
+    if (!res.ok) throw new Error('Failed to delete tablet');
   }
 };

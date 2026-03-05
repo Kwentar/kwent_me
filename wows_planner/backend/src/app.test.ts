@@ -86,4 +86,35 @@ describe('Planner API', () => {
 
     expect(response.statusCode).toBe(200)
   })
+
+  it('DELETE /planners/:id should allow owner to delete', async () => {
+    // 1. Identify User (ID 1)
+    mockPg.query.mockResolvedValueOnce({ rows: [{ id: 1 }] }) 
+    // 2. Resolve Planner (Owner is 1)
+    mockPg.query.mockResolvedValueOnce({ rows: [{ id: 10, user_id: 1 }] })
+    // 3. Delete execution
+    mockPg.query.mockResolvedValueOnce({ rows: [] })
+
+    const response = await app.inject({
+      method: 'DELETE',
+      url: '/planners/uuid-1'
+    })
+
+    expect(response.statusCode).toBe(200)
+    expect(mockPg.query).toHaveBeenCalledWith('DELETE FROM planners WHERE id = $1', [10])
+  })
+
+  it('DELETE /planners/:id should block non-owner', async () => {
+    // 1. Identify User (ID 2)
+    mockPg.query.mockResolvedValueOnce({ rows: [{ id: 2 }] }) 
+    // 2. Resolve Planner (Owner is 1)
+    mockPg.query.mockResolvedValueOnce({ rows: [{ id: 10, user_id: 1 }] })
+
+    const response = await app.inject({
+      method: 'DELETE',
+      url: '/planners/uuid-1'
+    })
+
+    expect(response.statusCode).toBe(403)
+  })
 })

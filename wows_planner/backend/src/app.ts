@@ -183,6 +183,14 @@ export function buildApp(opts = {}, testPg: any = null) {
     return { success: true }
   }))
 
+  app.delete('/planners/:id', withUser(async (req: any, reply: any, userId: number) => {
+    const { rows } = await app.pg.query('SELECT id, user_id FROM planners WHERE public_id = $1', [req.params.id])
+    if (rows.length === 0) return reply.code(404).send({ error: 'Not found' })
+    if (rows[0].user_id !== userId) return reply.code(403).send({ error: 'Forbidden' })
+    await app.pg.query('DELETE FROM planners WHERE id = $1', [rows[0].id])
+    return { success: true }
+  }))
+
   app.post('/planners/:id/heartbeat', withUser(async (req: any, reply: any, userId: number) => {
     const { rows } = await app.pg.query('SELECT id FROM planners WHERE public_id = $1', [req.params.id])
     if (rows.length > 0) await app.pg.query('INSERT INTO tablet_sessions (tablet_id, user_id, last_active) VALUES ($1, $2, NOW()) ON CONFLICT (tablet_id, user_id) DO UPDATE SET last_active = NOW()', [rows[0].id, userId])
