@@ -77,7 +77,7 @@ export const TabletView: React.FC<TabletViewProps> = ({ user, tablet, onBack }) 
                 }
                 if (data.type === 'state_update') {
                     // Only apply remote state if we are not acting
-                    if (!isInteracting && Date.now() - lastActionRef.current > 2000) {
+                    if (!isInteracting && Date.now() - lastActionRef.current > 1000) {
                         setLayers(data.payload.layers);
                         if (data.payload.activeLayerId) {
                             setActiveLayerId(data.payload.activeLayerId);
@@ -206,11 +206,11 @@ export const TabletView: React.FC<TabletViewProps> = ({ user, tablet, onBack }) 
       saveTimeoutRef.current = window.setTimeout(() => {
           api.updateTablet(tablet.id, { 
               layers: newLayers,
-              // We'll need a way to pass activeLayerId to API if we want it in DB
-              state: { layers: newLayers, activeLayerId: currentActiveId }
-          } as any);
+              // @ts-ignore - pass activeLayerId to backend state
+              state: { activeLayerId: currentActiveId }
+          });
           saveTimeoutRef.current = null;
-      }, 1000); 
+      }, 500); 
   };
 
   const updateTabletData = (newLayers: Layer[], newActiveId?: string) => {
@@ -307,9 +307,6 @@ export const TabletView: React.FC<TabletViewProps> = ({ user, tablet, onBack }) 
             payload: newPing
         }));
     }
-
-    // Send to server via HTTP (for DB persistence / history)
-    api.updateTablet(tablet.id, { pings: [newPing] } as any).catch(console.error);
   };
 
   // --- Effects ---
