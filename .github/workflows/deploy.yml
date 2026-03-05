@@ -9,15 +9,19 @@ on:
 env:
   REGISTRY: ghcr.io
 
+concurrency:
+  group: deploy-production
+  cancel-in-progress: true
+
 jobs:
   build-frontend:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
 
       - name: Setup Node.js
-        uses: actions/setup-node@v3
+        uses: actions/setup-node@v4
         with:
           node-version: 20
 
@@ -71,62 +75,85 @@ jobs:
 
   build-and-push-images:
     runs-on: ubuntu-latest
+    outputs:
+      image_name: ${{ steps.meta.outputs.image_name }}
+      image_tag: ${{ steps.meta.outputs.image_tag }}
     permissions:
       contents: read
       packages: write
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
 
-      - name: Lowercase image name
+      - name: Resolve image coordinates
+        id: meta
         run: |
-          echo "IMAGE_NAME=${GITHUB_REPOSITORY,,}" >> $GITHUB_ENV
+          IMAGE_NAME=$(echo "${GITHUB_REPOSITORY}" | tr '[:upper:]' '[:lower:]')
+          if [ "${GITHUB_REF_TYPE}" = "tag" ]; then
+            TAG="${GITHUB_REF_NAME}"
+          else
+            TAG="${GITHUB_SHA}"
+          fi
+          echo "image_name=${IMAGE_NAME}" >> "$GITHUB_OUTPUT"
+          echo "image_tag=${TAG}" >> "$GITHUB_OUTPUT"
 
       - name: Log in to the Container registry
-        uses: docker/login-action@v2
+        uses: docker/login-action@v3
         with:
           registry: ${{ env.REGISTRY }}
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Build and push Me service
-        uses: docker/build-push-action@v4
+        uses: docker/build-push-action@v6
         with:
           context: ./me
           push: true
-          tags: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}/me:latest
+          tags: |
+            ${{ env.REGISTRY }}/${{ steps.meta.outputs.image_name }}/me:${{ steps.meta.outputs.image_tag }}
+            ${{ env.REGISTRY }}/${{ steps.meta.outputs.image_name }}/me:latest
 
       - name: Build and push Notes Backend
-        uses: docker/build-push-action@v4
+        uses: docker/build-push-action@v6
         with:
           context: ./notes/backend
           push: true
-          tags: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}/notes-backend:latest
+          tags: |
+            ${{ env.REGISTRY }}/${{ steps.meta.outputs.image_name }}/notes-backend:${{ steps.meta.outputs.image_tag }}
+            ${{ env.REGISTRY }}/${{ steps.meta.outputs.image_name }}/notes-backend:latest
 
       - name: Build and push WoWs Planner Backend
-        uses: docker/build-push-action@v4
+        uses: docker/build-push-action@v6
         with:
           context: ./wows_planner/backend
           push: true
-          tags: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}/wows-planner-backend:latest
+          tags: |
+            ${{ env.REGISTRY }}/${{ steps.meta.outputs.image_name }}/wows-planner-backend:${{ steps.meta.outputs.image_tag }}
+            ${{ env.REGISTRY }}/${{ steps.meta.outputs.image_name }}/wows-planner-backend:latest
 
       - name: Build and push Shiptools Backend
-        uses: docker/build-push-action@v4
+        uses: docker/build-push-action@v6
         with:
           context: ./shiptools/backend
           push: true
-          tags: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}/shiptools-backend:latest
+          tags: |
+            ${{ env.REGISTRY }}/${{ steps.meta.outputs.image_name }}/shiptools-backend:${{ steps.meta.outputs.image_tag }}
+            ${{ env.REGISTRY }}/${{ steps.meta.outputs.image_name }}/shiptools-backend:latest
 
   deploy:
     runs-on: ubuntu-latest
     needs: [build-frontend, build-and-push-images]
+    env:
+      IMAGE_NAME: ${{ needs.build-and-push-images.outputs.image_name }}
+      IMAGE_TAG: ${{ needs.build-and-push-images.outputs.image_tag }}
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
 
-      - name: Lowercase image name
+      - name: Show deploy metadata
         run: |
-          echo "IMAGE_NAME=${GITHUB_REPOSITORY,,}" >> $GITHUB_ENV
+          echo "IMAGE_NAME=$IMAGE_NAME"
+          echo "IMAGE_TAG=$IMAGE_TAG"
 
       - name: Download Notes artifact
         uses: actions/download-artifact@v4
@@ -154,7 +181,7 @@ jobs:
 
       - name: Update docker-compose image names
         run: |
-          sed -i "s|IMAGE_NAME_PLACEHOLDER|${{ env.IMAGE_NAME }}|g" docker-compose.prod.yml
+          sed -i "s|IMAGE_NAME_PLACEHOLDER|$IMAGE_NAME|g" docker-compose.prod.yml
 
       - name: Copy files to server
         uses: appleboy/scp-action@master
@@ -172,6 +199,7 @@ jobs:
           username: ${{ secrets.USERNAME }}
           key: ${{ secrets.SSH_KEY }}
           script: |
+            set -euo pipefail
             echo ${{ secrets.GITHUB_TOKEN }} | docker login ghcr.io -u ${{ github.actor }} --password-stdin
             
             cd /root/kwent_me
@@ -180,6 +208,7 @@ jobs:
             echo "GOOGLE_CLIENT_ID=${{ secrets.GOOGLE_CLIENT_ID }}" >> .env
             echo "GOOGLE_CLIENT_SECRET=${{ secrets.GOOGLE_CLIENT_SECRET }}" >> .env
             echo "OAUTH2_PROXY_COOKIE_SECRET=${{ secrets.OAUTH2_PROXY_COOKIE_SECRET }}" >> .env
+            echo "IMAGE_TAG=${{ env.IMAGE_TAG }}" >> .env
             
             # Sync apps
             mkdir -p /var/www/kwent_me/notes
@@ -204,13 +233,13 @@ jobs:
 
             # Ensure init.sql directory exists
             cp wows_planner/backend/init.sql /root/kwent_me/wows_planner/backend/init.sql
-            cp wows_planner/backend/init.sql /root/kwent_me/wows_planner/backend/init.sql
             cp wows_planner/backend/migration.sql /root/kwent_me/wows_planner/backend/migration.sql
             
             # Update docker
             mv docker-compose.prod.yml docker-compose.yml
             docker compose pull
-            docker compose up -d --remove-orphans
+            docker compose up -d --remove-orphans --force-recreate
+            docker compose ps
             
             # Force DB migration (wait for DB start)
             sleep 10

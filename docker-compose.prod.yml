@@ -31,7 +31,7 @@ services:
 
   # --- Auth Test Service (/me) ---
   me:
-    image: ghcr.io/IMAGE_NAME_PLACEHOLDER/me:latest
+    image: ghcr.io/IMAGE_NAME_PLACEHOLDER/me:${IMAGE_TAG:-latest}
     container_name: kwent-me
     restart: always
     ports:
@@ -50,7 +50,7 @@ services:
       - notes_postgres_data:/var/lib/postgresql/data
 
   notes-backend:
-    image: ghcr.io/IMAGE_NAME_PLACEHOLDER/notes-backend:latest
+    image: ghcr.io/IMAGE_NAME_PLACEHOLDER/notes-backend:${IMAGE_TAG:-latest}
     container_name: notes-backend
     restart: always
     environment:
@@ -74,7 +74,7 @@ services:
       - ./wows_planner/backend/init.sql:/docker-entrypoint-initdb.d/init.sql
 
   wows-planner-backend:
-    image: ghcr.io/IMAGE_NAME_PLACEHOLDER/wows-planner-backend:latest
+    image: ghcr.io/IMAGE_NAME_PLACEHOLDER/wows-planner-backend:${IMAGE_TAG:-latest}
     container_name: wows-planner-backend
     restart: always
     environment:
@@ -88,7 +88,7 @@ services:
       - /var/www/kwent_me/wows_planner/uploads:/app/uploads
 
   shiptools-backend:
-    image: ghcr.io/IMAGE_NAME_PLACEHOLDER/shiptools-backend:latest
+    image: ghcr.io/IMAGE_NAME_PLACEHOLDER/shiptools-backend:${IMAGE_TAG:-latest}
     container_name: shiptools-backend
     restart: always
     environment:
