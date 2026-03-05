@@ -96,26 +96,27 @@ export function buildApp(opts = {}, testPg: any = null) {
   }
 
   // --- WebSocket Route ---
-  app.get('/socket/:id', { websocket: true }, (connection: any, req: any) => {
-      const tabletId = connection.params?.id;
-      if (!tabletId) { connection.socket.close(); return; }
+  app.get('/socket/:id', { websocket: true }, (socket: any, req: any) => {
+      const tabletId = req.params?.id;
+      if (!tabletId) { socket.close(); return; }
+      
       if (!rooms.has(tabletId)) rooms.set(tabletId, new Set());
       const room = rooms.get(tabletId)!;
-      room.add(connection);
+      room.add(socket);
       
-      connection.socket.on('message', (message: any) => {
+      socket.on('message', (message: any) => {
         try {
           const data = JSON.parse(message.toString());
           for (const client of room) {
-            if (client !== connection && client.socket.readyState === 1) { // WebSocket.OPEN is 1
-              client.socket.send(JSON.stringify(data));
+            if (client !== socket && client.readyState === 1) { // WebSocket.OPEN is 1
+              client.send(JSON.stringify(data));
             }
           }
         } catch (e) { app.log.error(e, 'WS Msg Error'); }
       });
       
-      connection.socket.on('close', () => {
-        room.delete(connection);
+      socket.on('close', () => {
+        room.delete(socket);
         if (room.size === 0) rooms.delete(tabletId);
       });
   });
