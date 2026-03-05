@@ -14,6 +14,8 @@ services:
     depends_on:
       - me
       - notes-backend
+      - wows-planner-backend
+      - shiptools-backend
 
   # 2. Identity Service
   me:
@@ -45,6 +47,8 @@ services:
   wows-planner-db:
     image: postgres:17-alpine
     container_name: wows-planner-db
+    ports:
+      - "5432:5432"
     environment:
       POSTGRES_USER: user
       POSTGRES_PASSWORD: password
@@ -63,6 +67,13 @@ services:
       - wows-planner-db
     volumes:
       - ./wows_planner/uploads:/app/uploads
+  shiptools-backend:
+    build: ./shiptools/backend
+    container_name: shiptools-backend
+    environment:
+      DATABASE_URL: postgres://user:password@wows-planner-db:5432/wows_planner
+    depends_on:
+      - wows-planner-db
 
 volumes:
   notes_local_data:
