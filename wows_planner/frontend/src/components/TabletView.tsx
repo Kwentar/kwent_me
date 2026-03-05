@@ -53,13 +53,7 @@ export const TabletView: React.FC<TabletViewProps> = ({ user, tablet, onBack }) 
   useEffect(() => {
     const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
     const host = window.location.host;
-    const isLocal = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
-    
-    // When using localhost on frontend, we must use localhost for socket to share cookies.
-    // If we use 127.0.0.1 for socket while on localhost, cookies will not be sent.
-    const socketUrl = isLocal 
-        ? `${protocol}//localhost:3000/socket/${tablet.id}`
-        : `${protocol}//${host}/wows_planner/api/socket/${tablet.id}`;
+    const socketUrl = `${protocol}//${host}/wows_planner/api/socket/${tablet.id}`;
     
     let ws: WebSocket;
     const connect = () => {
@@ -306,14 +300,16 @@ export const TabletView: React.FC<TabletViewProps> = ({ user, tablet, onBack }) 
     setTimeout(() => {
         setPings(prev => prev.filter(p => p.id !== newPing.id));
     }, 1500);
-    
-    // Send via WS (MOMENTARY)
+
     if (socketRef.current?.readyState === WebSocket.OPEN) {
         socketRef.current.send(JSON.stringify({
             type: 'ping',
             payload: newPing
         }));
     }
+
+    // Fallback/Persistence: Save to DB in background
+    api.updateTablet(tablet.id, { pings: [...pings, newPing] }).catch(console.error);
   };
 
   // --- Effects ---

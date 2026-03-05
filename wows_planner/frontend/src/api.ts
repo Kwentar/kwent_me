@@ -1,8 +1,6 @@
 import { Tablet, User, Ping } from './types';
 
-const API_BASE = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1'
-  ? `http://localhost:3000` 
-  : '/wows_planner/api';
+const API_BASE = '/wows_planner/api';
 
 const f = (url: string, init?: RequestInit) => fetch(url, {
   ...init,
@@ -111,12 +109,6 @@ export const api = {
     });
     if (!res.ok) throw new Error('Upload failed');
     const data = await res.json();
-    
-    // In local development, the backend serves the file directly
-    if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
-      return `http://${window.location.hostname}:3000${data.url}`;
-    }
-    
     return data.url;
   },
 

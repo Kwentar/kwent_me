@@ -9,6 +9,16 @@ export default defineConfig({
     react(),
     tailwindcss(),
   ],
+  server: {
+    proxy: {
+      '/wows_planner/api': {
+        target: 'http://127.0.0.1:3000',
+        changeOrigin: true,
+        ws: true,
+        rewrite: (path) => path.replace(/^\/wows_planner\/api/, '')
+      }
+    }
+  },
   // @ts-ignore
   test: {
     globals: true,
