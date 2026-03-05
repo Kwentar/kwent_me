@@ -5,6 +5,7 @@ import { TacticalMap } from './TacticalMap';
 import { Layer, ToolType, TacticalItem, ShipColor, Ping, Tablet, User, SessionUser } from '../types';
 import { Wifi, ArrowLeft, ShieldCheck, Eye } from 'lucide-react';
 import { api } from '../api';
+import { MAP_SIZES } from '../constants';
 
 interface TabletViewProps {
   user: User | null; // Current logged in user
@@ -28,12 +29,20 @@ export const TabletView: React.FC<TabletViewProps> = ({ user, tablet, onBack }) 
   const [selectedTool, setSelectedTool] = useState<ToolType>(ToolType.POINTER);
   
   // Configuration State
-  const [shipConfig, setShipConfig] = useState<{ color: string; label: string }>({
+  const [shipConfig, setShipConfig] = useState<{ color: string; label: string; radarRange?: number; hydroRange?: number }>({
     color: ShipColor.GREEN,
-    label: ''
+    label: '',
+    radarRange: 0,
+    hydroRange: 0
+  });
+  const [drawConfig, setDrawConfig] = useState<{ color: string }>({
+    color: ShipColor.YELLOW // Orange-ish default
   });
   const [pingColor, setPingColor] = useState<string>(ShipColor.WHITE);
   const [pings, setPings] = useState<Ping[]>([]);
+
+  const [showRadarCircles, setShowRadarCircles] = useState(true);
+  const [showHydroCircles, setShowHydroCircles] = useState(false);
   
   const [isOnline] = useState(true);
   const [isInteracting, setIsInteracting] = useState(false);
@@ -44,7 +53,10 @@ export const TabletView: React.FC<TabletViewProps> = ({ user, tablet, onBack }) 
   useEffect(() => {
     const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
     const host = window.location.host;
-    const socketUrl = `${protocol}//${host}/wows_planner/api/socket/${tablet.id}`;
+    const isLocal = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
+    const socketUrl = isLocal 
+        ? `${protocol}//${window.location.hostname}:3000/socket/${tablet.id}`
+        : `${protocol}//${host}/wows_planner/api/socket/${tablet.id}`;
     
     const connect = () => {
         const ws = new WebSocket(socketUrl);
@@ -242,12 +254,15 @@ export const TabletView: React.FC<TabletViewProps> = ({ user, tablet, onBack }) 
   const handleAddLayer = () => {
     if (!canEdit) return;
     markAction();
+    const name = `Tactic ${layers.length + 1}`;
+    const sizeKm = MAP_SIZES[name.toLowerCase()] || 42;
     const newLayer: Layer = {
       id: crypto.randomUUID(),
-      name: `Tactic ${layers.length + 1}`,
+      name,
       items: [],
       isVisible: true,
-      backgroundImage: undefined
+      backgroundImage: undefined,
+      sizeKm
     };
     const newLayers = [...layers, newLayer];
     updateTabletData(newLayers);
@@ -263,6 +278,12 @@ export const TabletView: React.FC<TabletViewProps> = ({ user, tablet, onBack }) 
     if (activeLayerId === id) {
         setActiveLayerId(newLayers[0].id);
     }
+  };
+
+  const handleUpdateLayerSize = (id: string, sizeKm: number) => {
+    if (!canEdit) return;
+    const newLayers = layers.map(l => l.id === id ? { ...l, sizeKm } : l);
+    updateTabletData(newLayers);
   };
 
   const handlePing = (x: number, y: number) => {
@@ -311,7 +332,8 @@ export const TabletView: React.FC<TabletViewProps> = ({ user, tablet, onBack }) 
 
   const handleRenameLayer = (id: string, newName: string) => {
       if (!canEdit) return;
-      const newLayers = layers.map(l => l.id === id ? { ...l, name: newName } : l);
+      const sizeKm = MAP_SIZES[newName.toLowerCase()] || layers.find(l => l.id === id)?.sizeKm || 42;
+      const newLayers = layers.map(l => l.id === id ? { ...l, name: newName, sizeKm } : l);
       updateTabletData(newLayers);
   };
 
@@ -327,6 +349,7 @@ export const TabletView: React.FC<TabletViewProps> = ({ user, tablet, onBack }) 
         onAddLayer={handleAddLayer}
         onDeleteLayer={handleDeleteLayer}
         onUpdateLayerMap={handleUpdateLayerMap}
+        onUpdateLayerSize={handleUpdateLayerSize}
         onToggleVisibility={(id) => {
              if (!canEdit) return; 
              const newLayers = layers.map(l => l.id === id ? { ...l, isVisible: !l.isVisible } : l);
@@ -383,7 +406,10 @@ export const TabletView: React.FC<TabletViewProps> = ({ user, tablet, onBack }) 
                 selectedTool={canEdit ? selectedTool : ToolType.PING} 
                 onUpdateLayer={handleUpdateLayer}
                 shipConfig={shipConfig}
+                drawConfig={drawConfig}
                 pings={pings}
+                showRadarCircles={showRadarCircles}
+                showHydroCircles={showHydroCircles}
                 onPing={handlePing}
                 onInteractionStart={() => setIsInteracting(true)}
                 onInteractionEnd={() => setIsInteracting(false)}
@@ -403,8 +429,14 @@ export const TabletView: React.FC<TabletViewProps> = ({ user, tablet, onBack }) 
          onSelectTool={setSelectedTool}
          shipConfig={shipConfig}
          onUpdateShipConfig={setShipConfig}
+         drawConfig={drawConfig}
+         onUpdateDrawConfig={setDrawConfig}
          pingColor={pingColor}
          onUpdatePingColor={setPingColor}
+         showRadarCircles={showRadarCircles}
+         onToggleRadarCircles={setShowRadarCircles}
+         showHydroCircles={showHydroCircles}
+         onToggleHydroCircles={setShowHydroCircles}
          readOnly={!canEdit}
       />
 

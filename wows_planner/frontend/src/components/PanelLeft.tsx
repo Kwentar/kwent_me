@@ -10,6 +10,7 @@ interface PanelLeftProps {
   onAddLayer: () => void;
   onDeleteLayer: (id: string) => void;
   onUpdateLayerMap: (id: string, fileOrUrl: string | File) => void;
+  onUpdateLayerSize: (id: string, size: number) => void;
   onToggleVisibility: (id: string) => void;
   
   // New props for User Management
@@ -29,6 +30,7 @@ export const PanelLeft: React.FC<PanelLeftProps> = ({
   onAddLayer,
   onDeleteLayer,
   onUpdateLayerMap,
+  onUpdateLayerSize,
   onToggleVisibility,
   currentUser,
   sessionUsers,
@@ -123,6 +125,28 @@ export const PanelLeft: React.FC<PanelLeftProps> = ({
                 <Map size={12} />
                 {layer.backgroundImage ? 'Map Loaded' : 'No Map Background'}
             </div>
+
+            {!readOnly && activeLayerId === layer.id && (
+                <div className="mt-3 pt-3 border-t border-slate-700/50 flex items-center justify-between gap-2" onClick={e => e.stopPropagation()}>
+                    <label className="text-[10px] text-slate-400 uppercase font-bold tracking-wider">Map Scale (km)</label>
+                    <div className="flex items-center gap-1">
+                        <input 
+                            type="number"
+                            min="1"
+                            max="100"
+                            value={layer.sizeKm || 42}
+                            onChange={(e) => onUpdateLayerSize(layer.id, parseInt(e.target.value) || 42)}
+                            className="w-14 bg-slate-950 border border-slate-700 rounded px-1.5 py-0.5 text-xs text-white focus:border-blue-500 outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                        />
+                        <span className="text-[10px] text-slate-500 font-bold">KM</span>
+                    </div>
+                </div>
+            )}
+            {readOnly && layer.sizeKm && activeLayerId === layer.id && (
+                <div className="mt-2 text-[10px] text-slate-500 uppercase font-bold tracking-wider flex items-center gap-1 border-t border-slate-800 pt-2">
+                    Scale: <span className="text-slate-300">{layer.sizeKm} KM</span>
+                </div>
+            )}
           </div>
         ))}
       </div>

@@ -2,14 +2,18 @@ import Fastify from 'fastify'
 import cors from '@fastify/cors'
 import postgres from '@fastify/postgres'
 
-export function buildApp(opts = {}) {
+export function buildApp(opts = {}, testPg: any = null) {
   const app = Fastify(opts)
 
   app.register(cors, { origin: '*' })
 
-  app.register(postgres, {
-    connectionString: process.env.DATABASE_URL || 'postgres://user:password@localhost:5432/wows_planner'
-  })
+  if (!testPg) {
+    app.register(postgres, {
+      connectionString: process.env.DATABASE_URL || 'postgres://user:password@localhost:5432/wows_planner'
+    })
+  } else {
+    app.decorate('pg', testPg)
+  }
 
   // Ensure tables exist
   app.addHook('onReady', async () => {

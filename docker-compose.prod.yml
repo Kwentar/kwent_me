@@ -87,6 +87,17 @@ services:
     volumes:
       - /var/www/kwent_me/wows_planner/uploads:/app/uploads
 
+  shiptools-backend:
+    image: ghcr.io/IMAGE_NAME_PLACEHOLDER/shiptools-backend:latest
+    container_name: shiptools-backend
+    restart: always
+    environment:
+      DATABASE_URL: postgres://user:${POSTGRES_PASSWORD}@wows-planner-db:5432/wows_planner
+    depends_on:
+      - wows-planner-db
+    ports:
+      - "3002:3000"
+
 volumes:
   notes_postgres_data:
   wows_planner_postgres_data:

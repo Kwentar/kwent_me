@@ -1,16 +1,22 @@
 import React from 'react';
 import { ToolType } from '../types';
-import { TOOLS, SHIP_TOOLS, COLORS } from '../constants';
+import { TOOLS, DRAW_TOOLS, SHIP_TOOLS, COLORS } from '../constants';
 import { ShipSymbol } from './ShipSymbol';
 import { Settings2, Lock } from 'lucide-react';
 
 interface PanelRightProps {
   selectedTool: ToolType;
   onSelectTool: (tool: ToolType) => void;
-  shipConfig: { color: string; label: string };
-  onUpdateShipConfig: (config: { color: string; label: string }) => void;
+  shipConfig: { color: string; label: string; radarRange?: number; hydroRange?: number };
+  onUpdateShipConfig: (config: { color: string; label: string; radarRange?: number; hydroRange?: number }) => void;
+  drawConfig: { color: string };
+  onUpdateDrawConfig: (config: { color: string }) => void;
   pingColor: string;
   onUpdatePingColor: (color: string) => void;
+  showRadarCircles: boolean;
+  onToggleRadarCircles: (val: boolean) => void;
+  showHydroCircles: boolean;
+  onToggleHydroCircles: (val: boolean) => void;
   readOnly?: boolean;
 }
 
@@ -19,8 +25,14 @@ export const PanelRight: React.FC<PanelRightProps> = ({
   onSelectTool,
   shipConfig,
   onUpdateShipConfig,
+  drawConfig,
+  onUpdateDrawConfig,
   pingColor,
   onUpdatePingColor,
+  showRadarCircles,
+  onToggleRadarCircles,
+  showHydroCircles,
+  onToggleHydroCircles,
   readOnly = false
 }) => {
   return (
@@ -85,29 +97,92 @@ export const PanelRight: React.FC<PanelRightProps> = ({
                     </div>
                 </div>
 
-                {/* Ship Tools */}
+                {/* Visualization Toggles */}
                 <div>
-                    <label className="text-xs font-semibold text-slate-400 uppercase tracking-wider block mb-3">Place Unit</label>
-                    <div className="grid grid-cols-1 gap-2">
-                        {SHIP_TOOLS.map(tool => (
+                    <label className="text-xs font-semibold text-slate-400 uppercase tracking-wider block mb-3">Visualization</label>
+                    <div className="space-y-2 bg-slate-950/50 p-3 rounded-lg border border-slate-800">
+                        <label className="flex items-center gap-3 cursor-pointer group">
+                            <input 
+                                type="checkbox"
+                                checked={showRadarCircles}
+                                onChange={(e) => onToggleRadarCircles(e.target.checked)}
+                                className="w-4 h-4 rounded border-slate-700 bg-slate-900 text-blue-500 focus:ring-blue-500 focus:ring-offset-slate-900"
+                            />
+                            <span className="text-sm text-slate-300 group-hover:text-white transition-colors font-medium">РЛС круги</span>
+                        </label>
+                        <label className="flex items-center gap-3 cursor-pointer group">
+                            <input 
+                                type="checkbox"
+                                checked={showHydroCircles}
+                                onChange={(e) => onToggleHydroCircles(e.target.checked)}
+                                className="w-4 h-4 rounded border-slate-700 bg-slate-900 text-green-500 focus:ring-green-500 focus:ring-offset-slate-900"
+                            />
+                            <span className="text-sm text-slate-300 group-hover:text-white transition-colors font-medium">ГАП круги</span>
+                        </label>
+                    </div>
+                </div>
+
+                {/* Drawing Tools */}
+                <div>
+                    <label className="text-xs font-semibold text-slate-400 uppercase tracking-wider block mb-3">Draw Tools</label>
+                    <div className="grid grid-cols-3 gap-2">
+                        {DRAW_TOOLS.map(tool => (
                             <button
                                 key={tool.id}
                                 onClick={() => onSelectTool(tool.id)}
-                                className={`flex items-center gap-3 p-3 rounded-lg border transition-all text-left ${selectedTool === tool.id ? 'bg-slate-800 border-blue-500 ring-1 ring-blue-500' : 'bg-slate-900 border-slate-800 hover:bg-slate-800'}`}
+                                className={`flex flex-col items-center justify-center p-2 rounded-lg border transition-all ${selectedTool === tool.id ? 'bg-orange-600 border-orange-500 text-white shadow-lg' : 'bg-slate-800 border-slate-700 text-slate-400 hover:bg-slate-700 hover:text-slate-200'}`}
                             >
-                                <div className="w-8 h-8 flex items-center justify-center bg-slate-950 rounded border border-slate-700">
-                                    <ShipSymbol type={(tool as any).symbol} color={selectedTool === tool.id ? shipConfig.color : '#64748b'} size={24} />
-                                </div>
-                                <div>
-                                    <div className={`font-bold text-sm ${selectedTool === tool.id ? 'text-blue-400' : 'text-slate-300'}`}>{tool.label}</div>
-                                    <div className="text-[10px] text-slate-500">{tool.short} Class Hull</div>
-                                </div>
+                                {tool.icon}
+                                <span className="text-[10px] mt-1 font-bold uppercase">{tool.label}</span>
                             </button>
                         ))}
                     </div>
                 </div>
 
-                {/* Configuration (Ping) */}
+                {/* Ship Tools */}
+                <div>
+                    <label className="text-xs font-semibold text-slate-400 uppercase tracking-wider block mb-3">Place Unit</label>
+                    <div className="grid grid-cols-3 gap-2">
+                        {SHIP_TOOLS.map(tool => (
+                            <button
+                                key={tool.id}
+                                onClick={() => onSelectTool(tool.id)}
+                                className={`flex flex-col items-center justify-center p-2 rounded-lg border transition-all ${selectedTool === tool.id ? 'bg-slate-800 border-blue-500 ring-1 ring-blue-500 shadow-lg shadow-blue-900/20' : 'bg-slate-900 border-slate-800 hover:bg-slate-800'}`}
+                                title={`${tool.label} (${tool.short})`}
+                            >
+                                <div className="w-10 h-10 flex items-center justify-center bg-slate-950 rounded-md border border-slate-700 mb-1">
+                                    <ShipSymbol type={(tool as any).symbol} color={selectedTool === tool.id ? shipConfig.color : '#64748b'} size={28} />
+                                </div>
+                                <div className={`font-bold text-[10px] uppercase tracking-tighter ${selectedTool === tool.id ? 'text-blue-400' : 'text-slate-500'}`}>{tool.short}</div>
+                            </button>
+                        ))}
+                    </div>
+                </div>
+
+                {/* Configuration (Draw Tools) */}
+                {[ToolType.ARROW, ToolType.CIRCLE, ToolType.PEN].includes(selectedTool) && (
+                    <div className="animate-in fade-in slide-in-from-bottom-4 duration-300">
+                        <div className="p-4 bg-slate-950/50 rounded-lg border border-slate-800 space-y-4">
+                            <div>
+                                <label className="text-xs font-semibold text-slate-400 mb-2 block">Drawing Color</label>
+                                <div className="flex flex-wrap gap-2">
+                                    {COLORS.map(c => (
+                                        <button
+                                            key={c.value}
+                                            onClick={() => onUpdateDrawConfig({ color: c.value })}
+                                            className={`w-8 h-8 rounded-full border-2 flex items-center justify-center transition-transform hover:scale-110 ${c.class} ${drawConfig.color === c.value ? 'border-white scale-110 shadow-lg' : 'border-transparent opacity-80'}`}
+                                            title={c.label}
+                                        >
+                                            {drawConfig.color === c.value && <div className="w-2 h-2 bg-current rounded-full mix-blend-difference" />}
+                                        </button>
+                                    ))}
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                )}
+
+                {/* Configuration (Ships) */}
                 {selectedTool === ToolType.PING && (
                     <div className="animate-in fade-in slide-in-from-bottom-4 duration-300">
                         <div className="p-4 bg-slate-950/50 rounded-lg border border-slate-800 space-y-4">
@@ -163,6 +238,35 @@ export const PanelRight: React.FC<PanelRightProps> = ({
                                     <div className="absolute right-2 top-2 text-[10px] text-slate-600 font-mono">
                                         {shipConfig.label.length}/20
                                     </div>
+                                </div>
+                            </div>
+
+                            <div className="grid grid-cols-2 gap-3">
+                                <div>
+                                    <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-1.5 block">РЛС (км)</label>
+                                    <input 
+                                        type="number"
+                                        step="0.1"
+                                        min="0"
+                                        max="20"
+                                        value={shipConfig.radarRange || ''}
+                                        onChange={(e) => onUpdateShipConfig({ ...shipConfig, radarRange: parseFloat(e.target.value) || 0 })}
+                                        placeholder="0.0"
+                                        className="w-full bg-slate-900 border border-slate-700 rounded px-2 py-1.5 text-sm text-slate-200 focus:border-blue-500 outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                                    />
+                                </div>
+                                <div>
+                                    <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-1.5 block">ГАП (км)</label>
+                                    <input 
+                                        type="number"
+                                        step="0.1"
+                                        min="0"
+                                        max="20"
+                                        value={shipConfig.hydroRange || ''}
+                                        onChange={(e) => onUpdateShipConfig({ ...shipConfig, hydroRange: parseFloat(e.target.value) || 0 })}
+                                        placeholder="0.0"
+                                        className="w-full bg-slate-900 border border-slate-700 rounded px-2 py-1.5 text-sm text-slate-200 focus:border-green-500 outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                                    />
                                 </div>
                             </div>
                         </div>

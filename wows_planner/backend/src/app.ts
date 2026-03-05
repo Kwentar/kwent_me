@@ -4,6 +4,7 @@ import postgres from '@fastify/postgres'
 import cookie from '@fastify/cookie'
 import multipart from '@fastify/multipart'
 import websocket from '@fastify/websocket'
+import fastifyStatic from '@fastify/static'
 import { v4 as uuidv4 } from 'uuid'
 import fs from 'fs'
 import path from 'path'
@@ -21,12 +22,17 @@ export function buildApp(opts = {}, testPg: any = null) {
 
   // Plugins
   app.register(cors, { 
-    origin: (origin, cb) => { cb(null, true) },
+    origin: true,
     credentials: true 
   })
   app.register(cookie)
   app.register(multipart)
   app.register(websocket)
+  
+  app.register(fastifyStatic, {
+    root: UPLOAD_DIR,
+    prefix: '/wows_planner/uploads/',
+  })
   
   if (!testPg) {
     app.register(postgres, {
@@ -134,7 +140,7 @@ export function buildApp(opts = {}, testPg: any = null) {
   }))
 
   app.get('/planners', withUser(async (req: any, reply: any, userId: number) => {
-    const { rows } = await app.pg.query('SELECT public_id as id, title, created_at, user_id FROM planners WHERE user_id = $1 ORDER BY updated_at DESC', [userId])
+    const { rows } = await app.pg.query('SELECT public_id as id, title, created_at, updated_at, user_id FROM planners WHERE user_id = $1 ORDER BY updated_at DESC', [userId])
     return rows
   }))
 

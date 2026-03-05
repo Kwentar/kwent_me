@@ -1,5 +1,8 @@
 export enum ToolType {
   POINTER = 'POINTER',
+  ARROW = 'ARROW',
+  CIRCLE = 'CIRCLE',
+  PEN = 'PEN',
   SHIP_BB = 'SHIP_BB',
   SHIP_CL = 'SHIP_CL',
   SHIP_DD = 'SHIP_DD',
@@ -8,7 +11,7 @@ export enum ToolType {
   ROTATE = 'ROTATE',
   ERASER = 'ERASER',
   PING = 'PING',
-  TEXT = 'TEXT' // Bonus: Text annotation tool
+  TEXT = 'TEXT'
 }
 
 export enum ShipColor {
@@ -24,15 +27,25 @@ export type ShipClass = 'BB' | 'CL' | 'DD' | 'CV' | 'SUB';
 
 export interface TacticalItem {
   id: string;
-  type: 'ship' | 'text' | 'arrow'; // Simplified for this MVP
-  x: number; // Percentage 0-100
+  type: 'ship' | 'text' | 'arrow' | 'circle' | 'path';
+  x: number; // Percentage 0-100 (Center for circle/ship, Start for arrow)
   y: number; // Percentage 0-100
   rotation: number; // Degrees
+  color?: string;
   
   // Ship specific
   shipClass?: ShipClass;
-  color?: string;
   label?: string;
+  radarRange?: number;
+  hydroRange?: number;
+
+  // Arrow/Circle specific
+  endX?: number;
+  endY?: number;
+  radiusKm?: number;
+
+  // Path specific (Pen)
+  points?: { x: number; y: number }[];
 
   // Text specific
   textContent?: string;
@@ -44,6 +57,7 @@ export interface Layer {
   items: TacticalItem[];
   backgroundImage?: string; // URL or Base64
   isVisible: boolean;
+  sizeKm?: number;
 }
 
 export interface Ping {

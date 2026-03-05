@@ -15,8 +15,11 @@ describe('TacticalMap - Reserve & Pings', () => {
     activeLayer: mockActiveLayer,
     selectedTool: ToolType.POINTER,
     onUpdateLayer: vi.fn(),
-    shipConfig: { color: 'red', label: '' },
+    shipConfig: { color: 'red', label: '', radarRange: 0, hydroRange: 0 },
+    drawConfig: { color: 'yellow' },
     pings: [],
+    showRadarCircles: true,
+    showHydroCircles: false,
     onPing: vi.fn(),
     onInteractionStart: vi.fn(),
     onInteractionEnd: vi.fn()
