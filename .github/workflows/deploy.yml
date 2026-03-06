@@ -231,10 +231,6 @@ jobs:
             cp nginx.conf /etc/nginx/sites-available/kwent_me
             nginx -t && systemctl reload nginx
 
-            # Ensure init.sql directory exists
-            cp wows_planner/backend/init.sql /root/kwent_me/wows_planner/backend/init.sql
-            cp wows_planner/backend/migration.sql /root/kwent_me/wows_planner/backend/migration.sql
-            
             # Update docker
             mv docker-compose.prod.yml docker-compose.yml
             docker compose pull
